@@ -57,6 +57,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(SetuIntegrationException.class)
+    public ResponseEntity<ErrorResponse> handleSetuIntegration(SetuIntegrationException ex) {
+        log.error("Setu integration failed: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Unhandled exception", ex);

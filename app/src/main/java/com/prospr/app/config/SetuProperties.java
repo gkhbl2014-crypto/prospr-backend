@@ -12,33 +12,30 @@ import lombok.Setter;
 @Setter
 public class SetuProperties {
 
-    private String baseUrl;
+    private String authUrl;
+    private String consentUrl;
+    private String sessionUrl;
+    private String redirectUrl;
     private String clientId;
     private String clientSecret;
     private String productInstanceId;
-	public String getBaseUrl() {
-		return baseUrl;
-	}
-	public void setBaseUrl(String baseUrl) {
-		this.baseUrl = baseUrl;
-	}
-	public String getClientId() {
-		return clientId;
-	}
-	public void setClientId(String clientId) {
-		this.clientId = clientId;
-	}
-	public String getClientSecret() {
-		return clientSecret;
-	}
-	public void setClientSecret(String clientSecret) {
-		this.clientSecret = clientSecret;
-	}
-	public String getProductInstanceId() {
-		return productInstanceId;
-	}
-	public void setProductInstanceId(String productInstanceId) {
-		this.productInstanceId = productInstanceId;
-	}
+    private String client;
+    private String format = "xml";
+    private ConsentDuration consentDuration = new ConsentDuration();
+    private DataRange dataRange = new DataRange();
+
+    @Getter
+    @Setter
+    public static class ConsentDuration {
+        private String unit = "MONTH";
+        private String value = "24";
+    }
+
+    @Getter
+    @Setter
+    public static class DataRange {
+        private String from;
+        private String to;
+    }
 
 }

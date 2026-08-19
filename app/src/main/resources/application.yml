@@ -1,0 +1,17 @@
+setu:
+  auth-url: ${SETU_AUTH_URL:https://orgservice-prod.setu.co/v1/users/login}
+  consent-url: ${SETU_CONSENT_URL:https://fiu-sandbox.setu.co/v2/consents}
+  session-url: ${SETU_SESSION_URL:https://fiu-sandbox.setu.co/v2/sessions}
+  base-url: ${SETU_BASE_URL:https://fiu-sandbox.setu.co/v2}
+  redirect-url: ${SETU_REDIRECT_URL:https://print-moustache-tricolor.ngrok-free.dev/app/setu/consent-complete}
+  client-id: ${SETU_CLIENT_ID:9417c471-d0b7-4db3-b253-d081cc9061e1}
+  client-secret: ${SETU_CLIENT_SECRET:r29oiasr7oaT7VlTRqnfG55zutVxnTIk}
+  product-instance-id: ${SETU_PRODUCT_INSTANCE_ID:2c53c5f3-33fe-47ad-a0f1-ec354232fde3}
+  client: ${SETU_CLIENT:bridge}
+  format: ${SETU_SESSION_FORMAT:xml}
+  consent-duration:
+    unit: ${SETU_CONSENT_DURATION_UNIT:MONTH}
+    value: ${SETU_CONSENT_DURATION_VALUE:24}
+  data-range:
+    from: ${SETU_DATA_RANGE_FROM:2022-12-01T00:00:00Z}
+    to: ${SETU_DATA_RANGE_TO:2023-08-12T00:00:00Z}
