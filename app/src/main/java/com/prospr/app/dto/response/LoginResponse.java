@@ -31,5 +31,7 @@ public class LoginResponse {
 
     private String role;
 
+    private boolean hasLinkedData;
+
     private String message;
 }

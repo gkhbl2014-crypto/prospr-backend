@@ -2,6 +2,7 @@ package com.prospr.app.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,12 +10,17 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.w3c.dom.Document;
 
 import com.prospr.app.config.SetuProperties;
 import com.prospr.app.dto.setu.SetuSessionRequest;
+import com.prospr.app.entity.Insurance;
 import com.prospr.app.entity.Member;
+import com.prospr.app.entity.MutualFundHolding;
 import com.prospr.app.entity.Transaction;
 import com.prospr.app.exception.SetuIntegrationException;
+import com.prospr.app.repository.InsuranceRepository;
+import com.prospr.app.repository.MutualFundHoldingRepository;
 import com.prospr.app.repository.TransactionRepository;
 
 @Service
@@ -22,22 +28,36 @@ public class SetuSessionService {
 
     private static final Logger log = LoggerFactory.getLogger(SetuSessionService.class);
     private static final String COMPLETED_STATUS = "COMPLETED";
+    private static final Set<String> INSURANCE_ACCOUNT_TYPES = Set.of("GENERAL_INSURANCE", "LIFE_INSURANCE");
+    private static final Set<String> MUTUAL_FUND_ACCOUNT_TYPES = Set.of("MUTUAL_FUNDS");
 
     private final WebClient webClient;
     private final SetuProperties properties;
     private final SetuAuthenticationService authenticationService;
     private final SetuTransactionXmlParser xmlParser;
+    private final SetuInsuranceXmlParser insuranceXmlParser;
+    private final SetuMutualFundXmlParser mutualFundXmlParser;
     private final TransactionRepository transactionRepository;
+    private final InsuranceRepository insuranceRepository;
+    private final MutualFundHoldingRepository mutualFundHoldingRepository;
 
     public SetuSessionService(WebClient webClient, SetuProperties properties,
                                SetuAuthenticationService authenticationService,
                                SetuTransactionXmlParser xmlParser,
-                               TransactionRepository transactionRepository) {
+                               SetuInsuranceXmlParser insuranceXmlParser,
+                               SetuMutualFundXmlParser mutualFundXmlParser,
+                               TransactionRepository transactionRepository,
+                               InsuranceRepository insuranceRepository,
+                               MutualFundHoldingRepository mutualFundHoldingRepository) {
         this.webClient = webClient;
         this.properties = properties;
         this.authenticationService = authenticationService;
         this.xmlParser = xmlParser;
+        this.insuranceXmlParser = insuranceXmlParser;
+        this.mutualFundXmlParser = mutualFundXmlParser;
         this.transactionRepository = transactionRepository;
+        this.insuranceRepository = insuranceRepository;
+        this.mutualFundHoldingRepository = mutualFundHoldingRepository;
     }
 
     public com.prospr.app.dto.response.SetuSessionResponse createSession(String consentId) {
@@ -113,7 +133,7 @@ public class SetuSessionService {
             logAccountDataPresence(sessionId, response);
 
             if (COMPLETED_STATUS.equalsIgnoreCase(response.getStatus())) {
-                persistTransactions(response, member);
+                persistFinancialData(response, member);
             }
             return response;
         } catch (SetuIntegrationException ex) {
@@ -146,16 +166,22 @@ public class SetuSessionService {
         }
     }
 
-    private void persistTransactions(com.prospr.app.dto.setu.SetuSessionResponse session, Member member) {
-        if (transactionRepository.existsBySessionId(session.getId())) {
-            log.info("Transactions for session '{}' already persisted; skipping", session.getId());
-            return;
-        }
+    private void persistFinancialData(com.prospr.app.dto.setu.SetuSessionResponse session, Member member) {
         if (session.getFips() == null) {
             return;
         }
 
+        boolean transactionsAlreadyPersisted = transactionRepository.existsBySessionId(session.getId());
+        boolean insuranceAlreadyPersisted = insuranceRepository.existsBySessionId(session.getId());
+        boolean mutualFundsAlreadyPersisted = mutualFundHoldingRepository.existsBySessionId(session.getId());
+        if (transactionsAlreadyPersisted && insuranceAlreadyPersisted && mutualFundsAlreadyPersisted) {
+            log.info("Financial data for session '{}' already persisted; skipping", session.getId());
+            return;
+        }
+
         List<Transaction> transactions = new ArrayList<>();
+        List<Insurance> policies = new ArrayList<>();
+        List<MutualFundHolding> mutualFundHoldings = new ArrayList<>();
         for (com.prospr.app.dto.setu.SetuSessionResponse.Fip fip : session.getFips()) {
             if (fip.getAccounts() == null) {
                 continue;
@@ -164,9 +190,19 @@ public class SetuSessionService {
                 if (account.getData() == null || account.getData().getXml() == null) {
                     continue;
                 }
+                String xml = account.getData().getXml();
+                String accountType = readAccountType(xml);
                 try {
-                    transactions.addAll(xmlParser.parse(account.getData().getXml(), member,
-                            account.getMaskedAccNumber(), session.getId(), session.getConsentId()));
+                    if (INSURANCE_ACCOUNT_TYPES.contains(accountType)) {
+                        policies.addAll(insuranceXmlParser.parse(xml, member,
+                                account.getMaskedAccNumber(), session.getId(), session.getConsentId()));
+                    } else if (MUTUAL_FUND_ACCOUNT_TYPES.contains(accountType)) {
+                        mutualFundHoldings.addAll(mutualFundXmlParser.parse(xml, member,
+                                account.getMaskedAccNumber(), session.getId(), session.getConsentId()));
+                    } else {
+                        transactions.addAll(xmlParser.parse(xml, member,
+                                account.getMaskedAccNumber(), session.getId(), session.getConsentId()));
+                    }
                 } catch (SetuIntegrationException ex) {
                     log.error("Skipping account '{}' for session '{}': {}",
                             account.getMaskedAccNumber(), session.getId(), ex.getMessage());
@@ -174,10 +210,30 @@ public class SetuSessionService {
             }
         }
 
-        if (!transactions.isEmpty()) {
+        if (!transactions.isEmpty() && !transactionsAlreadyPersisted) {
             transactionRepository.saveAll(transactions);
             log.info("Persisted {} transactions for member '{}' from session '{}'",
                     transactions.size(), member.getId(), session.getId());
+        }
+        if (!policies.isEmpty() && !insuranceAlreadyPersisted) {
+            insuranceRepository.saveAll(policies);
+            log.info("Persisted {} insurance policies for member '{}' from session '{}'",
+                    policies.size(), member.getId(), session.getId());
+        }
+        if (!mutualFundHoldings.isEmpty() && !mutualFundsAlreadyPersisted) {
+            mutualFundHoldingRepository.saveAll(mutualFundHoldings);
+            log.info("Persisted {} mutual fund holdings for member '{}' from session '{}'",
+                    mutualFundHoldings.size(), member.getId(), session.getId());
+        }
+    }
+
+    private String readAccountType(String xml) {
+        try {
+            Document document = SetuXmlUtils.parse(xml);
+            return document.getDocumentElement().getAttribute("type");
+        } catch (Exception ex) {
+            log.warn("Unable to determine account type from XML; defaulting to transaction parsing: {}", ex.getMessage());
+            return "";
         }
     }
 }

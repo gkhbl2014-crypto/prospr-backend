@@ -15,7 +15,10 @@ import com.prospr.app.dto.response.LoginResponse;
 import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
 import com.prospr.app.exception.InvalidCredentialsException;
+import com.prospr.app.repository.InsuranceRepository;
 import com.prospr.app.repository.MemberRepository;
+import com.prospr.app.repository.MutualFundHoldingRepository;
+import com.prospr.app.repository.TransactionRepository;
 import com.prospr.app.service.LoginService;
 
 @Service
@@ -27,13 +30,22 @@ public class LoginServiceImpl implements LoginService {
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final TransactionRepository transactionRepository;
+    private final InsuranceRepository insuranceRepository;
+    private final MutualFundHoldingRepository mutualFundHoldingRepository;
 
     public LoginServiceImpl(MemberRepository memberRepository,
                              PasswordEncoder passwordEncoder,
-                             JwtUtil jwtUtil) {
+                             JwtUtil jwtUtil,
+                             TransactionRepository transactionRepository,
+                             InsuranceRepository insuranceRepository,
+                             MutualFundHoldingRepository mutualFundHoldingRepository) {
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.transactionRepository = transactionRepository;
+        this.insuranceRepository = insuranceRepository;
+        this.mutualFundHoldingRepository = mutualFundHoldingRepository;
     }
 
     @Override
@@ -59,6 +71,9 @@ public class LoginServiceImpl implements LoginService {
 
         Family family = member.getFamily();
         String token = jwtUtil.generateToken(member.getEmail(), buildClaims(member, family));
+        boolean hasLinkedData = transactionRepository.existsByMemberId(member.getId())
+                || insuranceRepository.existsByMemberId(member.getId())
+                || mutualFundHoldingRepository.existsByMemberId(member.getId());
 
         log.info("Login successful for memberId={}", member.getId());
 
@@ -71,6 +86,7 @@ public class LoginServiceImpl implements LoginService {
                 .lastName(member.getLastName())
                 .email(member.getEmail())
                 .role(member.getRole())
+                .hasLinkedData(hasLinkedData)
                 .message("Login successful")
                 .build();
     }

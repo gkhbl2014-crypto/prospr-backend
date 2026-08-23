@@ -11,5 +11,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     boolean existsBySessionId(String sessionId);
 
+    boolean existsByMemberId(UUID memberId);
+
     List<Transaction> findByMemberIdOrderByTransactionTimestampDesc(UUID memberId);
 }
