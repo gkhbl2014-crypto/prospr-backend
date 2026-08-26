@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.prospr.app.dto.response.MutualFundHoldingResponse;
+import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
@@ -29,12 +30,15 @@ public class MutualFundController {
     @GetMapping
     public ResponseEntity<List<MutualFundHoldingResponse>> listHoldings(Authentication authentication) {
         Member member = resolveMember(authentication);
+        Family family = member.getFamily();
 
-        List<MutualFundHoldingResponse> holdings = mutualFundHoldingRepository
-                .findByMemberIdOrderByCreatedAtDesc(member.getId())
+        List<MutualFundHoldingResponse> holdings = (family == null
+                ? mutualFundHoldingRepository.findByMemberIdOrderByCreatedAtDesc(member.getId())
+                : mutualFundHoldingRepository.findByMemberFamilyIdOrderByCreatedAtDesc(family.getId()))
                 .stream()
                 .map(holding -> MutualFundHoldingResponse.builder()
                         .id(holding.getId())
+                        .memberId(holding.getMember().getId())
                         .maskedAccountNumber(holding.getMaskedAccountNumber())
                         .costValue(holding.getCostValue())
                         .currentValue(holding.getCurrentValue())

@@ -1,5 +1,6 @@
 package com.prospr.app.repository;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,6 @@ import com.prospr.app.entity.Family;
 public interface FamilyRepository extends JpaRepository<Family, UUID> {
 
     boolean existsByInviteCode(String inviteCode);
+
+    Optional<Family> findByInviteCode(String inviteCode);
 }

@@ -30,7 +30,10 @@ public class SetuConsentService {
         this.authenticationService = authenticationService;
     }
 
+    private static final String TEST_MOBILE_OVERRIDE = "9999999999";
+
     public SetuConsentResponse createConsent(String mobile) {
+        mobile = TEST_MOBILE_OVERRIDE;
         if (mobile == null || mobile.isBlank()) {
             throw new SetuIntegrationException("Logged-in user does not have a registered mobile number");
         }

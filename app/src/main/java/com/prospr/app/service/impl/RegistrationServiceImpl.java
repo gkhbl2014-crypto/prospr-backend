@@ -7,7 +7,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.prospr.app.dto.request.JoinFamilyRequest;
 import com.prospr.app.dto.request.RegisterRequest;
+import com.prospr.app.dto.response.JoinFamilyResponse;
 import com.prospr.app.dto.response.RegisterResponse;
 import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
@@ -49,7 +51,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     public RegisterResponse register(RegisterRequest request) {
         log.info("Registering new family '{}' with admin email '{}'", request.getFamilyName(), request.getEmail());
 
-        validateUniqueness(request);
+        validateUniqueness(request.getEmail(), request.getPhone());
 
         try {
             String inviteCode = generateUniqueInviteCode();
@@ -72,14 +74,38 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
     }
 
-    private void validateUniqueness(RegisterRequest request) {
-        if (memberRepository.existsByEmail(request.getEmail())) {
-            log.warn("Registration rejected: email '{}' is already registered", request.getEmail());
-            throw new DuplicateEmailException("An account with email '" + request.getEmail() + "' already exists");
+    @Override
+    @Transactional
+    public JoinFamilyResponse joinFamily(JoinFamilyRequest request) {
+        log.info("Member joining family via invite code for email '{}'", request.getEmail());
+
+        Family family = familyRepository.findByInviteCode(request.getInviteCode())
+                .orElseThrow(() -> {
+                    log.warn("Join rejected: no family found for invite code");
+                    return new RegistrationException("Invalid invite code");
+                });
+        validateUniqueness(request.getEmail(), request.getPhone());
+
+        try {
+            String encodedPassword = passwordEncoder.encode(request.getPassword());
+            Member member = registrationMapper.toJoiningMemberEntity(request, family, encodedPassword);
+            member = memberRepository.save(member);
+            log.info("Join successful: familyId={}, memberId={}", family.getId(), member.getId());
+            return registrationMapper.toJoinFamilyResponse(family, member);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("Join failed due to a data integrity violation", ex);
+            throw new RegistrationException("Unable to join family due to a conflicting record. Please try again.", ex);
         }
-        if (memberRepository.existsByPhone(request.getPhone())) {
-            log.warn("Registration rejected: phone '{}' is already registered", request.getPhone());
-            throw new DuplicatePhoneException("An account with phone '" + request.getPhone() + "' already exists");
+    }
+
+    private void validateUniqueness(String email, String phone) {
+        if (memberRepository.existsByEmail(email)) {
+            log.warn("Registration rejected: email '{}' is already registered", email);
+            throw new DuplicateEmailException("An account with email '" + email + "' already exists");
+        }
+        if (memberRepository.existsByPhone(phone)) {
+            log.warn("Registration rejected: phone '{}' is already registered", phone);
+            throw new DuplicatePhoneException("An account with phone '" + phone + "' already exists");
         }
     }
 

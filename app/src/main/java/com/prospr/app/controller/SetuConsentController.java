@@ -17,6 +17,7 @@ import com.prospr.app.dto.response.SetuSessionResponse;
 import com.prospr.app.entity.Member;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
+import com.prospr.app.service.MemberDataResetService;
 import com.prospr.app.service.SetuConsentService;
 import com.prospr.app.service.SetuSessionService;
 
@@ -26,18 +27,35 @@ public class SetuConsentController {
 
     private final SetuConsentService consentService;
     private final SetuSessionService sessionService;
+    private final MemberDataResetService memberDataResetService;
     private final MemberRepository memberRepository;
 
     public SetuConsentController(SetuConsentService consentService, SetuSessionService sessionService,
+                                  MemberDataResetService memberDataResetService,
                                   MemberRepository memberRepository) {
         this.consentService = consentService;
         this.sessionService = sessionService;
+        this.memberDataResetService = memberDataResetService;
         this.memberRepository = memberRepository;
     }
 
     @PostMapping("/consent")
     public ResponseEntity<SetuConsentResponse> createConsent(Authentication authentication) {
         Member member = resolveMember(authentication);
+        return ResponseEntity.ok(consentService.createConsent(member.getPhone()));
+    }
+
+    /**
+     * Revokes locally: deletes all of the caller's stored transactions/insurance/mutual-fund
+     * (and derived lifestyle) data, then starts a brand new consent via the same
+     * {@link SetuConsentService#createConsent(String)} call every other consent in this app uses.
+     * There is no Setu-side revoke call here - this integration doesn't expose one - so this is a
+     * local reset-and-reconnect, not a request to Setu to invalidate the old consent.
+     */
+    @PostMapping("/consent/revoke")
+    public ResponseEntity<SetuConsentResponse> revokeAndReconnect(Authentication authentication) {
+        Member member = resolveMember(authentication);
+        memberDataResetService.deleteAllFinancialData(member);
         return ResponseEntity.ok(consentService.createConsent(member.getPhone()));
     }
 

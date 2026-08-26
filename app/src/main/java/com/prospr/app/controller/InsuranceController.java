@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.prospr.app.dto.response.InsuranceResponse;
+import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.InsuranceRepository;
@@ -29,8 +30,11 @@ public class InsuranceController {
     @GetMapping
     public ResponseEntity<List<InsuranceResponse>> listInsurance(Authentication authentication) {
         Member member = resolveMember(authentication);
+        Family family = member.getFamily();
 
-        List<InsuranceResponse> policies = insuranceRepository.findByMemberIdOrderByCreatedAtDesc(member.getId())
+        List<InsuranceResponse> policies = (family == null
+                ? insuranceRepository.findByMemberIdOrderByCreatedAtDesc(member.getId())
+                : insuranceRepository.findByMemberFamilyIdOrderByCreatedAtDesc(family.getId()))
                 .stream()
                 .map(policy -> InsuranceResponse.builder()
                         .id(policy.getId())

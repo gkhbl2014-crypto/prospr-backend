@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.prospr.app.dto.response.TransactionResponse;
+import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
@@ -30,12 +31,15 @@ public class TransactionController {
     public ResponseEntity<List<TransactionResponse>> listTransactions(Authentication authentication) {
         Member member = memberRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Logged-in member was not found"));
+        Family family = member.getFamily();
 
-        List<TransactionResponse> transactions = transactionRepository
-                .findByMemberIdOrderByTransactionTimestampDesc(member.getId())
+        List<TransactionResponse> transactions = (family == null
+                ? transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(member.getId())
+                : transactionRepository.findByMemberFamilyIdOrderByTransactionTimestampDesc(family.getId()))
                 .stream()
                 .map(txn -> TransactionResponse.builder()
                         .id(txn.getId())
+                        .memberId(txn.getMember().getId())
                         .maskedAccountNumber(txn.getMaskedAccountNumber())
                         .txnId(txn.getTxnId())
                         .mode(txn.getMode())

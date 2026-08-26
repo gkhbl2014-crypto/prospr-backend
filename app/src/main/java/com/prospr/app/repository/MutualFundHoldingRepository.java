@@ -16,4 +16,9 @@ public interface MutualFundHoldingRepository extends JpaRepository<MutualFundHol
     boolean existsByMemberId(UUID memberId);
 
     List<MutualFundHolding> findByMemberIdOrderByCreatedAtDesc(UUID memberId);
+
+    /** Combined feed for every member of a household, for the family dashboard. */
+    List<MutualFundHolding> findByMemberFamilyIdOrderByCreatedAtDesc(UUID familyId);
+
+    void deleteByMemberId(UUID memberId);
 }

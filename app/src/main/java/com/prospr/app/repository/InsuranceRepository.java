@@ -16,4 +16,9 @@ public interface InsuranceRepository extends JpaRepository<Insurance, UUID> {
     boolean existsByMemberId(UUID memberId);
 
     List<Insurance> findByMemberIdOrderByCreatedAtDesc(UUID memberId);
+
+    /** Combined feed for every member of a household, for the family dashboard. */
+    List<Insurance> findByMemberFamilyIdOrderByCreatedAtDesc(UUID familyId);
+
+    void deleteByMemberId(UUID memberId);
 }

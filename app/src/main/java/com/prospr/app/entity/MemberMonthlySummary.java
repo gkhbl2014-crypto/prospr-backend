@@ -1,12 +1,11 @@
 package com.prospr.app.entity;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -27,8 +26,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+/** One row per member/year/month/category, aggregated from categorized debit transactions. */
 @Entity
-@Table(name = "transactions")
+@Table(name = "member_monthly_summary")
 @Getter
 @Setter
 @Builder
@@ -36,7 +36,7 @@ import lombok.ToString;
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
-public class Transaction {
+public class MemberMonthlySummary {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -50,55 +50,29 @@ public class Transaction {
     @ToString.Exclude
     private Member member;
 
-    @Column(name = "session_id")
-    private String sessionId;
+    @Column(name = "year", nullable = false)
+    private Integer year;
 
-    @Column(name = "consent_id")
-    private String consentId;
+    @Column(name = "month", nullable = false)
+    private Integer month;
 
-    @Column(name = "masked_account_number")
-    private String maskedAccountNumber;
-
-    @Column(name = "account_ref")
-    private String accountRef;
-
-    @Column(name = "txn_id", nullable = false)
-    private String txnId;
-
-    @Column(name = "mode")
-    private String mode;
-
-    @Column(name = "type")
-    private String type;
-
-    @Column(name = "amount", precision = 15, scale = 2)
-    private BigDecimal amount;
-
-    @Column(name = "transactional_balance", precision = 15, scale = 2)
-    private BigDecimal transactionalBalance;
-
-    @Column(name = "narration")
-    private String narration;
-
-    @Column(name = "reference")
-    private String reference;
-
-    @Column(name = "value_date")
-    private LocalDate valueDate;
-
-    @Column(name = "transaction_timestamp")
-    private OffsetDateTime transactionTimestamp;
-
-    @Column(name = "merchant_name")
-    private String merchantName;
-
-    @Column(name = "category")
+    @Column(name = "category", nullable = false)
     private String category;
 
-    @Column(name = "subcategory")
-    private String subcategory;
+    @Column(name = "total_amount", precision = 15, scale = 2, nullable = false)
+    private BigDecimal totalAmount;
+
+    @Column(name = "transaction_count", nullable = false)
+    private Integer transactionCount;
+
+    @Column(name = "average_transaction", precision = 15, scale = 2)
+    private BigDecimal averageTransaction;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

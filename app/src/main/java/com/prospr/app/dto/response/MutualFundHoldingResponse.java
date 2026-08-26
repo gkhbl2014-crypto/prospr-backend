@@ -12,6 +12,7 @@ import lombok.Getter;
 public class MutualFundHoldingResponse {
 
     private UUID id;
+    private UUID memberId;
     private String maskedAccountNumber;
     private BigDecimal costValue;
     private BigDecimal currentValue;

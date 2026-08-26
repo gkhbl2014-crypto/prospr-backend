@@ -13,6 +13,7 @@ import lombok.Getter;
 public class TransactionResponse {
 
     private UUID id;
+    private UUID memberId;
     private String maskedAccountNumber;
     private String txnId;
     private String mode;

@@ -63,6 +63,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    @ExceptionHandler(LifestyleAnalysisException.class)
+    public ResponseEntity<ErrorResponse> handleLifestyleAnalysis(LifestyleAnalysisException ex) {
+        log.error("Lifestyle analysis failed: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Unhandled exception", ex);

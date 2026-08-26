@@ -40,6 +40,7 @@ public class SetuSessionService {
     private final TransactionRepository transactionRepository;
     private final InsuranceRepository insuranceRepository;
     private final MutualFundHoldingRepository mutualFundHoldingRepository;
+    private final LifestyleAnalysisService lifestyleAnalysisService;
 
     public SetuSessionService(WebClient webClient, SetuProperties properties,
                                SetuAuthenticationService authenticationService,
@@ -48,7 +49,8 @@ public class SetuSessionService {
                                SetuMutualFundXmlParser mutualFundXmlParser,
                                TransactionRepository transactionRepository,
                                InsuranceRepository insuranceRepository,
-                               MutualFundHoldingRepository mutualFundHoldingRepository) {
+                               MutualFundHoldingRepository mutualFundHoldingRepository,
+                               LifestyleAnalysisService lifestyleAnalysisService) {
         this.webClient = webClient;
         this.properties = properties;
         this.authenticationService = authenticationService;
@@ -58,6 +60,7 @@ public class SetuSessionService {
         this.transactionRepository = transactionRepository;
         this.insuranceRepository = insuranceRepository;
         this.mutualFundHoldingRepository = mutualFundHoldingRepository;
+        this.lifestyleAnalysisService = lifestyleAnalysisService;
     }
 
     public com.prospr.app.dto.response.SetuSessionResponse createSession(String consentId) {
@@ -224,6 +227,15 @@ public class SetuSessionService {
             mutualFundHoldingRepository.saveAll(mutualFundHoldings);
             log.info("Persisted {} mutual fund holdings for member '{}' from session '{}'",
                     mutualFundHoldings.size(), member.getId(), session.getId());
+        }
+
+        // Lifestyle analysis is a no-op for members who never enabled it, and never throws - a
+        // failure here must never surface as a failure of the underlying Setu fetch/save above.
+        try {
+            lifestyleAnalysisService.recomputeIfEnabled(member);
+        } catch (Exception ex) {
+            log.error("Lifestyle analysis recompute failed for member '{}' after session '{}': {}",
+                    member.getId(), session.getId(), ex.getMessage(), ex);
         }
     }
 

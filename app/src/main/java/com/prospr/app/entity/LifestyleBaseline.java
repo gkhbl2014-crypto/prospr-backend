@@ -1,9 +1,7 @@
 package com.prospr.app.entity;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -27,8 +25,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+/** A member's "normal" monthly spend per lifestyle category, from the previous 3 completed months. */
 @Entity
-@Table(name = "transactions")
+@Table(name = "lifestyle_baseline")
 @Getter
 @Setter
 @Builder
@@ -36,7 +35,7 @@ import lombok.ToString;
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
-public class Transaction {
+public class LifestyleBaseline {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -50,55 +49,25 @@ public class Transaction {
     @ToString.Exclude
     private Member member;
 
-    @Column(name = "session_id")
-    private String sessionId;
-
-    @Column(name = "consent_id")
-    private String consentId;
-
-    @Column(name = "masked_account_number")
-    private String maskedAccountNumber;
-
-    @Column(name = "account_ref")
-    private String accountRef;
-
-    @Column(name = "txn_id", nullable = false)
-    private String txnId;
-
-    @Column(name = "mode")
-    private String mode;
-
-    @Column(name = "type")
-    private String type;
-
-    @Column(name = "amount", precision = 15, scale = 2)
-    private BigDecimal amount;
-
-    @Column(name = "transactional_balance", precision = 15, scale = 2)
-    private BigDecimal transactionalBalance;
-
-    @Column(name = "narration")
-    private String narration;
-
-    @Column(name = "reference")
-    private String reference;
-
-    @Column(name = "value_date")
-    private LocalDate valueDate;
-
-    @Column(name = "transaction_timestamp")
-    private OffsetDateTime transactionTimestamp;
-
-    @Column(name = "merchant_name")
-    private String merchantName;
-
-    @Column(name = "category")
+    @Column(name = "category", nullable = false)
     private String category;
 
-    @Column(name = "subcategory")
-    private String subcategory;
+    @Column(name = "baseline_months", nullable = false)
+    private Integer baselineMonths;
+
+    @Column(name = "baseline_amount", precision = 15, scale = 2, nullable = false)
+    private BigDecimal baselineAmount;
+
+    @Column(name = "minimum_amount", precision = 15, scale = 2)
+    private BigDecimal minimumAmount;
+
+    @Column(name = "maximum_amount", precision = 15, scale = 2)
+    private BigDecimal maximumAmount;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "last_calculated_at")
+    private LocalDateTime lastCalculatedAt;
 }
