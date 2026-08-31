@@ -57,6 +57,18 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(SafetyNetConflictException.class)
+    public ResponseEntity<ErrorResponse> handleSafetyNetConflict(SafetyNetConflictException ex) {
+        log.warn("Safety Net write rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(SafetyNetValidationException.class)
+    public ResponseEntity<ErrorResponse> handleSafetyNetValidation(SafetyNetValidationException ex) {
+        log.warn("Safety Net write rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(SetuIntegrationException.class)
     public ResponseEntity<ErrorResponse> handleSetuIntegration(SetuIntegrationException ex) {
         log.error("Setu integration failed: {}", ex.getMessage());

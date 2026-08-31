@@ -1,6 +1,7 @@
 package com.prospr.app.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +17,9 @@ public interface InsuranceRepository extends JpaRepository<Insurance, UUID> {
     boolean existsByMemberId(UUID memberId);
 
     List<Insurance> findByMemberIdOrderByCreatedAtDesc(UUID memberId);
+
+    /** Scoped lookup so a policy can only ever be resolved within the caller's own data. */
+    Optional<Insurance> findByIdAndMemberId(UUID id, UUID memberId);
 
     /** Combined feed for every member of a household, for the family dashboard. */
     List<Insurance> findByMemberFamilyIdOrderByCreatedAtDesc(UUID familyId);

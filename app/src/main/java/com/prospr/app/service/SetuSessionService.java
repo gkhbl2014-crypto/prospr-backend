@@ -41,6 +41,7 @@ public class SetuSessionService {
     private final InsuranceRepository insuranceRepository;
     private final MutualFundHoldingRepository mutualFundHoldingRepository;
     private final LifestyleAnalysisService lifestyleAnalysisService;
+    private final SafetyNetService safetyNetService;
 
     public SetuSessionService(WebClient webClient, SetuProperties properties,
                                SetuAuthenticationService authenticationService,
@@ -50,7 +51,8 @@ public class SetuSessionService {
                                TransactionRepository transactionRepository,
                                InsuranceRepository insuranceRepository,
                                MutualFundHoldingRepository mutualFundHoldingRepository,
-                               LifestyleAnalysisService lifestyleAnalysisService) {
+                               LifestyleAnalysisService lifestyleAnalysisService,
+                               SafetyNetService safetyNetService) {
         this.webClient = webClient;
         this.properties = properties;
         this.authenticationService = authenticationService;
@@ -61,6 +63,7 @@ public class SetuSessionService {
         this.insuranceRepository = insuranceRepository;
         this.mutualFundHoldingRepository = mutualFundHoldingRepository;
         this.lifestyleAnalysisService = lifestyleAnalysisService;
+        this.safetyNetService = safetyNetService;
     }
 
     public com.prospr.app.dto.response.SetuSessionResponse createSession(String consentId) {
@@ -235,6 +238,16 @@ public class SetuSessionService {
             lifestyleAnalysisService.recomputeIfEnabled(member);
         } catch (Exception ex) {
             log.error("Lifestyle analysis recompute failed for member '{}' after session '{}': {}",
+                    member.getId(), session.getId(), ex.getMessage(), ex);
+        }
+
+        // Safety Net has no opt-in gate (unlike Lifestyle above) - it recomputes unconditionally.
+        // Independent try/catch so a Safety Net failure never blocks the underlying Setu save, and
+        // is unaffected by whether the Lifestyle recompute above succeeded or failed.
+        try {
+            safetyNetService.recomputeForMember(member);
+        } catch (Exception ex) {
+            log.error("Safety Net recompute failed for member '{}' after session '{}': {}",
                     member.getId(), session.getId(), ex.getMessage(), ex);
         }
     }

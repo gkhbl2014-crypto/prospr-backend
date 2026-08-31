@@ -46,17 +46,27 @@ public class SetuInsuranceXmlParser {
                 if (policyNumber == null || policyNumber.isBlank()) {
                     continue;
                 }
+                String insuranceType = blankToNull(summary.getAttribute("insuranceType"));
+                BigDecimal sumAssured = parseDecimal(summary.getAttribute("sumAssured"));
+                // Setu's XML only ever carries one "sumAssured" attribute regardless of insurance
+                // type; Safety Net's health-coverage math reads sumInsured specifically, so mirror
+                // the same parsed value into it for HEALTH policies only.
+                BigDecimal sumInsured = (insuranceType != null && insuranceType.toUpperCase().contains("HEALTH"))
+                        ? sumAssured
+                        : null;
                 policies.add(Insurance.builder()
                         .member(member)
                         .sessionId(sessionId)
                         .consentId(consentId)
                         .accountRef(accountRef)
                         .maskedPolicyNumber(maskedPolicyNumber)
-                        .insuranceType(blankToNull(summary.getAttribute("insuranceType")))
+                        .insuranceType(insuranceType)
                         .policyNumber(policyNumber)
                         .insurerName(blankToNull(accountElement.getAttribute("insurerName")))
                         .policyName(blankToNull(summary.getAttribute("policyName")))
-                        .sumAssured(parseDecimal(summary.getAttribute("sumAssured")))
+                        .sumAssured(sumAssured)
+                        .sumInsured(sumInsured)
+                        .source("SETU")
                         .premiumAmount(parseDecimal(summary.getAttribute("premiumAmount")))
                         .premiumFrequency(blankToNull(summary.getAttribute("premiumFrequency")))
                         .policyStartDate(parseDate(summary.getAttribute("policyStartDate")))

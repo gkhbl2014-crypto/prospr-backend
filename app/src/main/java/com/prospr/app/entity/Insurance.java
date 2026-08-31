@@ -65,6 +65,16 @@ public class Insurance {
     @Column(name = "insurance_type")
     private String insuranceType;
 
+    @Column(name = "policy_type")
+    private String policyType;
+
+    @Column(name = "sum_insured", precision = 15, scale = 2)
+    private BigDecimal sumInsured;
+
+    /** "SETU" (parsed from an AA session) or "MANUAL" (user-entered). */
+    @Column(name = "source", nullable = false)
+    private String source;
+
     @Column(name = "policy_number", nullable = false)
     private String policyNumber;
 

@@ -52,6 +52,18 @@ public class CategoryFallbackRules {
             new Rule("cultfit", "FITNESS", "Gym"),
             new Rule("cult.fit", "FITNESS", "Gym"),
             new Rule("gym", "FITNESS", "Gym"),
+            // Groceries / utilities - essential for Safety Net's emergency-fund calculation.
+            new Rule("bigbasket", "GROCERIES", null),
+            new Rule("dmart", "GROCERIES", null),
+            new Rule("grofers", "GROCERIES", null),
+            new Rule("jiomart", "GROCERIES", null),
+            new Rule("grocery", "GROCERIES", null),
+            new Rule("electricity", "UTILITIES", null),
+            new Rule("broadband", "UTILITIES", null),
+            new Rule("jiofiber", "UTILITIES", null),
+            new Rule("gasbill", "UTILITIES", null),
+            new Rule("waterbill", "UTILITIES", null),
+            new Rule("vodafoneidea", "UTILITIES", null),
             // Excluded/essential categories - still worth categorizing correctly so they are
             // reliably kept OUT of lifestyle sums rather than left as uncategorized noise.
             new Rule("rent", "RENT", null),
