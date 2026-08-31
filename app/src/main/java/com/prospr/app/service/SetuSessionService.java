@@ -222,7 +222,7 @@ public class SetuSessionService {
                     transactions.size(), member.getId(), session.getId());
         }
         if (!policies.isEmpty() && !insuranceAlreadyPersisted) {
-            insuranceRepository.saveAll(policies);
+            insuranceRepository.saveAll(upsertBySetuPolicyNumber(policies, member));
             log.info("Persisted {} insurance policies for member '{}' from session '{}'",
                     policies.size(), member.getId(), session.getId());
         }
@@ -250,6 +250,45 @@ public class SetuSessionService {
             log.error("Safety Net recompute failed for member '{}' after session '{}': {}",
                     member.getId(), session.getId(), ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * The same Setu account (especially sandbox test data) can hand back the same policy number on
+     * every re-consent. Insurance now has a unique constraint on (member_id, policy_number, source),
+     * so a freshly-parsed policy that already exists must update that row in place rather than
+     * attempting a second insert.
+     */
+    private List<Insurance> upsertBySetuPolicyNumber(List<Insurance> parsedPolicies, Member member) {
+        List<Insurance> toSave = new ArrayList<>(parsedPolicies.size());
+        for (Insurance parsed : parsedPolicies) {
+            Insurance existing = insuranceRepository
+                    .findByMemberIdAndPolicyNumberAndSource(member.getId(), parsed.getPolicyNumber(), "SETU")
+                    .orElse(null);
+            if (existing == null) {
+                toSave.add(parsed);
+                continue;
+            }
+            existing.setSessionId(parsed.getSessionId());
+            existing.setConsentId(parsed.getConsentId());
+            existing.setAccountRef(parsed.getAccountRef());
+            existing.setMaskedPolicyNumber(parsed.getMaskedPolicyNumber());
+            existing.setInsuranceType(parsed.getInsuranceType());
+            existing.setInsurerName(parsed.getInsurerName());
+            existing.setPolicyName(parsed.getPolicyName());
+            existing.setSumAssured(parsed.getSumAssured());
+            existing.setSumInsured(parsed.getSumInsured());
+            existing.setPremiumAmount(parsed.getPremiumAmount());
+            existing.setPremiumFrequency(parsed.getPremiumFrequency());
+            existing.setPolicyStartDate(parsed.getPolicyStartDate());
+            existing.setPolicyEndDate(parsed.getPolicyEndDate());
+            existing.setMaturityDate(parsed.getMaturityDate());
+            existing.setNextPremiumDueDate(parsed.getNextPremiumDueDate());
+            existing.setPolicyStatus(parsed.getPolicyStatus());
+            existing.setNomineeName(parsed.getNomineeName());
+            existing.setLastUpdated(parsed.getLastUpdated());
+            toSave.add(existing);
+        }
+        return toSave;
     }
 
     private String readAccountType(String xml) {
