@@ -2,6 +2,7 @@ package com.prospr.app.repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,9 @@ import com.prospr.app.entity.Transaction;
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
     boolean existsBySessionId(String sessionId);
+
+    /** Scoped lookup so a transaction's hidden flag can only ever be toggled by its own owner. */
+    Optional<Transaction> findByIdAndMemberId(UUID id, UUID memberId);
 
     boolean existsByMemberId(UUID memberId);
 

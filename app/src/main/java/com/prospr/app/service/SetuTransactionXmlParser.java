@@ -67,6 +67,7 @@ public class SetuTransactionXmlParser {
                         .reference(txnElement.getAttribute("reference"))
                         .valueDate(parseDate(txnElement.getAttribute("valueDate")))
                         .transactionTimestamp(parseTimestamp(txnElement.getAttribute("transactionTimestamp")))
+                        .isHidden(false)
                         .build());
             }
             return transactions;

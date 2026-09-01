@@ -98,6 +98,11 @@ public class Transaction {
     @Column(name = "subcategory")
     private String subcategory;
 
+    /** Owner-controlled: excluded from the shared family activity list when true, but still counted
+     *  in aggregate calculations (net income/expenditure, balances, insights). */
+    @Column(name = "is_hidden", nullable = false)
+    private Boolean isHidden;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

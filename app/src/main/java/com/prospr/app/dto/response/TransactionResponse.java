@@ -24,4 +24,9 @@ public class TransactionResponse {
     private String reference;
     private LocalDate valueDate;
     private OffsetDateTime transactionTimestamp;
+    /** Owner-controlled: the owner has chosen to exclude this transaction from the shared family
+     *  activity list. Still returned in full here (never filtered out of this API) so aggregate
+     *  calculations that read this same list - net income/expenditure, balances, insights - keep
+     *  counting it; the frontend is responsible for excluding it from list-style displays only. */
+    private boolean hidden;
 }
