@@ -26,4 +26,6 @@ public class MutualFundHoldingResponse {
     private BigDecimal closingUnits;
     private BigDecimal nav;
     private LocalDate navDate;
+    private LocalDate investmentDate;
+    private String source;
 }

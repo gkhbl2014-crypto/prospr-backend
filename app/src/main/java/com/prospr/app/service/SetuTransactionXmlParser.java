@@ -68,6 +68,7 @@ public class SetuTransactionXmlParser {
                         .valueDate(parseDate(txnElement.getAttribute("valueDate")))
                         .transactionTimestamp(parseTimestamp(txnElement.getAttribute("transactionTimestamp")))
                         .isHidden(false)
+                        .source("SETU")
                         .build());
             }
             return transactions;

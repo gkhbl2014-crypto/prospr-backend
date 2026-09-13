@@ -79,7 +79,7 @@ public class MutualFundHolding {
     @Column(name = "scheme_option")
     private String schemeOption;
 
-    @Column(name = "isin", nullable = false)
+    @Column(name = "isin")
     private String isin;
 
     @Column(name = "isin_description")
@@ -105,6 +105,15 @@ public class MutualFundHolding {
 
     @Column(name = "lockin_units", precision = 18, scale = 4)
     private BigDecimal lockinUnits;
+
+    /** "SETU" (parsed from an AA session) or "MANUAL" (user-entered). */
+    @Column(name = "source", nullable = false)
+    private String source;
+
+    /** When the member bought this holding - distinct from navDate (a valuation date), and only
+     *  ever populated for MANUAL entries since Setu doesn't supply it. */
+    @Column(name = "investment_date")
+    private LocalDate investmentDate;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

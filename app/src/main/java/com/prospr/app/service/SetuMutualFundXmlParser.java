@@ -74,6 +74,7 @@ public class SetuMutualFundXmlParser {
                         .nav(parseDecimal(holding.getAttribute("nav")))
                         .navDate(parseDate(holding.getAttribute("navDate")))
                         .lockinUnits(parseDecimal(holding.getAttribute("lockinUnits")))
+                        .source("SETU")
                         .build());
             }
             return holdings;

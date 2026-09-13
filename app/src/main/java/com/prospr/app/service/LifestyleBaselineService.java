@@ -54,12 +54,16 @@ public class LifestyleBaselineService {
 
     /**
      * @param currentMonth the calendar month analysis is being run for; baseline months are the
-     *                     three calendar months strictly before it (e.g. current=August ->
-     *                     May, June, July - never "June 15 to August 15").
+     *                     {@link LifestyleProperties#getBaselineMonths()} calendar months strictly
+     *                     before it (e.g. current=August, window=6 -> February..July - never a
+     *                     rolling day-count window).
      */
     public Result recomputeForMember(Member member, YearMonth currentMonth) {
-        List<YearMonth> baselineMonths = List.of(
-                currentMonth.minusMonths(3), currentMonth.minusMonths(2), currentMonth.minusMonths(1));
+        int windowSize = properties.getBaselineMonths();
+        List<YearMonth> baselineMonths = new ArrayList<>();
+        for (int monthsBack = windowSize; monthsBack >= 1; monthsBack--) {
+            baselineMonths.add(currentMonth.minusMonths(monthsBack));
+        }
         LocalDate earliestBaselineMonthStart = baselineMonths.get(0).atDay(1);
 
         // Sufficiency is about whether the member's fetched transaction history reaches back to the

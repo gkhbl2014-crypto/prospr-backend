@@ -60,6 +60,7 @@ class LifestyleBaselineServiceTest {
 
     @Test
     void averagesThreeCompletedMonthsTreatingAMissingCategoryRowAsZeroSpend() {
+        properties.setBaselineMonths(3);
         Member member = member();
         when(transactionRepository.existsByMemberIdAndValueDateLessThanEqual(eq(member.getId()), any()))
                 .thenReturn(true);
@@ -92,6 +93,30 @@ class LifestyleBaselineServiceTest {
         assertThat(diningBaseline.getBaselineAmount()).isEqualByComparingTo("4500.00");
         assertThat(diningBaseline.getMinimumAmount()).isEqualByComparingTo("4000");
         assertThat(diningBaseline.getMaximumAmount()).isEqualByComparingTo("5000");
+    }
+
+    @Test
+    void usesConfiguredWindowSizeRatherThanHardcodedThreeMonths() {
+        // Default LifestyleProperties.baselineMonths is 6 - the whole point of this test is that the
+        // service actually reads that value instead of always building a fixed 3-month window.
+        assertThat(properties.getBaselineMonths()).isEqualTo(6);
+        Member member = member();
+        when(transactionRepository.existsByMemberIdAndValueDateLessThanEqual(eq(member.getId()), any()))
+                .thenReturn(true);
+        when(summaryRepository.findByMemberIdAndYearAndMonthAndCategory(any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(baselineRepository.findByMemberIdAndCategory(any(), any())).thenReturn(Optional.empty());
+
+        service().recomputeForMember(member, YearMonth.of(2026, 8));
+
+        // Window should be Feb..Jul 2026 (6 months strictly before August) - confirm the coverage
+        // check reaches back to the start of February, not May (the old hardcoded 3-month start).
+        verify(transactionRepository)
+                .existsByMemberIdAndValueDateLessThanEqual(member.getId(), java.time.LocalDate.of(2026, 2, 1));
+        verify(summaryRepository, org.mockito.Mockito.atLeastOnce())
+                .findByMemberIdAndYearAndMonthAndCategory(eq(member.getId()), eq(2026), eq(2), any());
+        verify(summaryRepository, org.mockito.Mockito.atLeastOnce())
+                .findByMemberIdAndYearAndMonthAndCategory(eq(member.getId()), eq(2026), eq(7), any());
     }
 
     private MemberMonthlySummary summary(BigDecimal total) {

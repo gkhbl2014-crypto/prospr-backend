@@ -18,7 +18,7 @@ import lombok.Setter;
 public class LifestyleProperties {
 
     /** Number of previous completed calendar months used to build the baseline. */
-    private int baselineMonths = 3;
+    private int baselineMonths = 6;
 
     /** Severity bucket boundaries, in percent increase over baseline. */
     private double lowThresholdPercent = 15;

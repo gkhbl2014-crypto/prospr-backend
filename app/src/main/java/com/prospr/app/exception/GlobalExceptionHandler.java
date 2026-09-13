@@ -57,6 +57,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(ImportValidationException.class)
+    public ResponseEntity<ErrorResponse> handleImportValidation(ImportValidationException ex) {
+        log.warn("Statement import rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(SafetyNetConflictException.class)
     public ResponseEntity<ErrorResponse> handleSafetyNetConflict(SafetyNetConflictException ex) {
         log.warn("Safety Net write rejected: {}", ex.getMessage());

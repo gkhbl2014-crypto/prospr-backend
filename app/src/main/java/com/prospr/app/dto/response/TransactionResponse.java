@@ -29,4 +29,6 @@ public class TransactionResponse {
      *  calculations that read this same list - net income/expenditure, balances, insights - keep
      *  counting it; the frontend is responsible for excluding it from list-style displays only. */
     private boolean hidden;
+    /** "SETU" (parsed from an AA session) or "MANUAL" (PDF/CSV/XLSX import). */
+    private String source;
 }

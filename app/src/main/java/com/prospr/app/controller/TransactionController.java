@@ -86,6 +86,7 @@ public class TransactionController {
                 .valueDate(txn.getValueDate())
                 .transactionTimestamp(txn.getTransactionTimestamp())
                 .hidden(Boolean.TRUE.equals(txn.getIsHidden()))
+                .source(txn.getSource())
                 .build();
     }
 

@@ -1,0 +1,21 @@
+package com.prospr.app.repository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.prospr.app.entity.FinancialGoal;
+
+@Repository
+public interface FinancialGoalRepository extends JpaRepository<FinancialGoal, UUID> {
+
+    List<FinancialGoal> findByMemberIdOrderByCreatedAtDesc(UUID memberId);
+
+    /** Combined feed for every member of a household, for the family dashboard. */
+    List<FinancialGoal> findByMemberFamilyIdOrderByCreatedAtDesc(UUID familyId);
+
+    Optional<FinancialGoal> findByIdAndMemberId(UUID id, UUID memberId);
+}

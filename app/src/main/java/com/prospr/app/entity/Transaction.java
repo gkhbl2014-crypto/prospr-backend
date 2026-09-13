@@ -103,6 +103,10 @@ public class Transaction {
     @Column(name = "is_hidden", nullable = false)
     private Boolean isHidden;
 
+    /** "SETU" (parsed from an AA session) or "MANUAL" (PDF/CSV/XLSX import). */
+    @Column(name = "source", nullable = false)
+    private String source;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

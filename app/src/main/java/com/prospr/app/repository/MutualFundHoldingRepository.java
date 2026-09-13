@@ -1,6 +1,7 @@
 package com.prospr.app.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +17,9 @@ public interface MutualFundHoldingRepository extends JpaRepository<MutualFundHol
     boolean existsByMemberId(UUID memberId);
 
     List<MutualFundHolding> findByMemberIdOrderByCreatedAtDesc(UUID memberId);
+
+    /** Scoped lookup so a holding can only ever be resolved within the caller's own data. */
+    Optional<MutualFundHolding> findByIdAndMemberId(UUID id, UUID memberId);
 
     /** Combined feed for every member of a household, for the family dashboard. */
     List<MutualFundHolding> findByMemberFamilyIdOrderByCreatedAtDesc(UUID familyId);
