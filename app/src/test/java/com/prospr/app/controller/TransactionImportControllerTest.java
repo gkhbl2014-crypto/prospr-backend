@@ -161,6 +161,33 @@ class TransactionImportControllerTest {
     }
 
     @Test
+    void confirmGivesSameDayRowsStrictlyIncreasingTimestampsMatchingFileOrder() {
+        // "Current balance" is read off whichever transaction sorts most recent. If every same-day
+        // row got an identical timestamp, Postgres would break ties arbitrarily instead of honoring
+        // the statement's own chronological file order - picking a random same-day balance instead
+        // of the true last one. Confirm must keep same-day rows in strictly increasing order.
+        Member member = member();
+        stubCaller(member);
+        when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ImportConfirmRow first = new ImportConfirmRow();
+        first.setValueDate(LocalDate.of(2026, 3, 7));
+        first.setType("DEBIT");
+        first.setAmount(new BigDecimal("119.00"));
+        ImportConfirmRow second = new ImportConfirmRow();
+        second.setValueDate(LocalDate.of(2026, 3, 7));
+        second.setType("DEBIT");
+        second.setAmount(new BigDecimal("114.00"));
+        ImportConfirmRequest request = new ImportConfirmRequest();
+        request.setRows(List.of(first, second));
+
+        ImportConfirmResponse response = controller().confirm(request, authentication).getBody();
+
+        assertThat(response.getTransactions().get(0).getTransactionTimestamp())
+                .isBefore(response.getTransactions().get(1).getTransactionTimestamp());
+    }
+
+    @Test
     void confirmTriggersSafetyNetRecompute() {
         Member member = member();
         stubCaller(member);

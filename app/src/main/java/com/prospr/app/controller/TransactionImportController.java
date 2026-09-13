@@ -107,9 +107,11 @@ public class TransactionImportController {
                                                            Authentication authentication) {
         Member member = resolveMember(authentication);
 
-        List<Transaction> newTransactions = request.getRows().stream()
-                .map(row -> toTransaction(row, member))
-                .toList();
+        List<ImportConfirmRow> rows = request.getRows();
+        List<Transaction> newTransactions = new java.util.ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            newTransactions.add(toTransaction(rows.get(i), member, i));
+        }
 
         categorizationService.categorize(newTransactions);
         List<Transaction> saved = transactionRepository.saveAll(newTransactions);
@@ -141,7 +143,7 @@ public class TransactionImportController {
                 .build();
     }
 
-    private Transaction toTransaction(ImportConfirmRow row, Member member) {
+    private Transaction toTransaction(ImportConfirmRow row, Member member, int sequenceInBatch) {
         return Transaction.builder()
                 .member(member)
                 .maskedAccountNumber(null)
@@ -156,11 +158,15 @@ public class TransactionImportController {
                 .reference(row.getReference())
                 .valueDate(row.getValueDate())
                 // Every transaction list (dashboard, family feed, "All Transactions") sorts by
-                // transaction_timestamp; a file line has no real time-of-day, but leaving this null
-                // would sort every manual import ahead of same-day Setu rows (Postgres puts NULLs
-                // first on a DESC sort), burying genuinely recent activity. Midnight UTC on the
-                // statement's value date keeps manual rows chronologically interleaved correctly.
-                .transactionTimestamp(row.getValueDate().atStartOfDay().atOffset(java.time.ZoneOffset.UTC))
+                // transaction_timestamp, and "current balance" is read off whichever transaction
+                // sorts most recent. A file line has no real time-of-day, but giving every same-day
+                // row an identical midnight timestamp would make Postgres break ties arbitrarily
+                // among them - picking a random same-day balance instead of the statement's true
+                // last one. The statement lists rows in chronological file order (confirmed by its
+                // own sequential serial numbers), so a monotonically increasing per-row offset off
+                // that same midnight preserves that order without needing real clock times.
+                .transactionTimestamp(
+                        row.getValueDate().atStartOfDay().atOffset(java.time.ZoneOffset.UTC).plusSeconds(sequenceInBatch))
                 .isHidden(false)
                 .source(MANUAL_SOURCE)
                 .build();
