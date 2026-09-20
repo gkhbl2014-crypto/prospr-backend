@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,8 @@ import com.prospr.app.entity.SafetyNetSettings;
 import com.prospr.app.entity.SafetyNetSummary;
 import com.prospr.app.repository.SafetyNetSettingsRepository;
 import com.prospr.app.repository.SafetyNetSummaryRepository;
+import com.prospr.app.service.cache.AnalyticsCacheService;
+import com.prospr.app.service.cache.CacheKeys;
 
 /**
  * Orchestrates the three Safety Net sub-calculations and caches the result in
@@ -37,19 +40,22 @@ public class SafetyNetService {
     private final EmergencyFundService emergencyFundService;
     private final HealthCoverageService healthCoverageService;
     private final LifeCoverageService lifeCoverageService;
+    private final AnalyticsCacheService analyticsCacheService;
 
     public SafetyNetService(SafetyNetSettingsRepository settingsRepository,
                              SafetyNetSummaryRepository summaryRepository,
                              EssentialExpenseService essentialExpenseService,
                              EmergencyFundService emergencyFundService,
                              HealthCoverageService healthCoverageService,
-                             LifeCoverageService lifeCoverageService) {
+                             LifeCoverageService lifeCoverageService,
+                             AnalyticsCacheService analyticsCacheService) {
         this.settingsRepository = settingsRepository;
         this.summaryRepository = summaryRepository;
         this.essentialExpenseService = essentialExpenseService;
         this.emergencyFundService = emergencyFundService;
         this.healthCoverageService = healthCoverageService;
         this.lifeCoverageService = lifeCoverageService;
+        this.analyticsCacheService = analyticsCacheService;
     }
 
     private record Computed(HealthCoverageService.Result health, LifeCoverageService.Result life,
@@ -70,13 +76,30 @@ public class SafetyNetService {
                 .orElseGet(() -> SafetyNetSummary.builder().member(member).build());
         applyTo(summary, computed);
         summaryRepository.save(summary);
+        analyticsCacheService.evictSafetyNet(member.getId());
     }
 
-    /** Reads the cached summary if present; computes on-the-fly (without persisting) on cold start. */
+    /**
+     * Redis first (fast path), then the Postgres-cached summary row, then a full cold compute as a
+     * last resort. Every tier degrades to the next on a miss/failure - Redis being down never
+     * prevents a correct answer, it just costs the same DB read this endpoint always did before.
+     */
     public SafetyNetResponse getForMember(Member member) {
-        return summaryRepository.findByMemberId(member.getId())
-                .map(this::toResponse)
-                .orElseGet(() -> toResponse(computeAll(member)));
+        Optional<SafetyNetResponse> cached = analyticsCacheService.getSafetyNet(member.getId());
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        return analyticsCacheService.withStampedeGuard(CacheKeys.safetyNet(member.getId()), () -> {
+            Optional<SafetyNetResponse> recheck = analyticsCacheService.getSafetyNet(member.getId());
+            if (recheck.isPresent()) {
+                return recheck.get();
+            }
+            SafetyNetResponse computed = summaryRepository.findByMemberId(member.getId())
+                    .map(this::toResponse)
+                    .orElseGet(() -> toResponse(computeAll(member)));
+            analyticsCacheService.putSafetyNet(member.getId(), computed);
+            return computed;
+        });
     }
 
     private Computed computeAll(Member member) {

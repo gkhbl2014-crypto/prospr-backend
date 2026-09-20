@@ -15,6 +15,7 @@ import com.prospr.app.entity.Transaction;
 import com.prospr.app.repository.LifestyleInsightRepository;
 import com.prospr.app.repository.MemberLifestyleStatusRepository;
 import com.prospr.app.repository.TransactionRepository;
+import com.prospr.app.service.cache.AnalyticsCacheService;
 
 /**
  * Top-level orchestrator for the Lifestyle Creep feature. The pipeline stages (categorization,
@@ -41,6 +42,7 @@ public class LifestyleAnalysisService {
     private final LifestyleBaselineService baselineService;
     private final LifestyleInsightService insightService;
     private final LifestyleInsightRepository insightRepository;
+    private final AnalyticsCacheService analyticsCacheService;
 
     public LifestyleAnalysisService(MemberLifestyleStatusRepository statusRepository,
                                      TransactionRepository transactionRepository,
@@ -48,7 +50,8 @@ public class LifestyleAnalysisService {
                                      MonthlySpendingSummaryService monthlySummaryService,
                                      LifestyleBaselineService baselineService,
                                      LifestyleInsightService insightService,
-                                     LifestyleInsightRepository insightRepository) {
+                                     LifestyleInsightRepository insightRepository,
+                                     AnalyticsCacheService analyticsCacheService) {
         this.statusRepository = statusRepository;
         this.transactionRepository = transactionRepository;
         this.categorizationService = categorizationService;
@@ -56,6 +59,7 @@ public class LifestyleAnalysisService {
         this.baselineService = baselineService;
         this.insightService = insightService;
         this.insightRepository = insightRepository;
+        this.analyticsCacheService = analyticsCacheService;
     }
 
     /** Runs the pipeline against whatever transaction history already exists for this member. */
@@ -115,6 +119,7 @@ public class LifestyleAnalysisService {
 
             insightService.recomputeForMember(member, currentMonth, LocalDate.now());
             updateStatus(status, LifestyleStatus.READY);
+            analyticsCacheService.evictLifestyleCreep(member.getId());
         } catch (Exception ex) {
             log.error("Lifestyle analysis failed for member '{}': {}", member.getId(), ex.getMessage(), ex);
             status.setStatus(LifestyleStatus.ERROR);

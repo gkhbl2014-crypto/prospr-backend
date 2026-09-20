@@ -24,6 +24,7 @@ import com.prospr.app.entity.MemberMonthlySnapshot;
 import com.prospr.app.entity.Transaction;
 import com.prospr.app.repository.MemberMonthlySnapshotRepository;
 import com.prospr.app.repository.TransactionRepository;
+import com.prospr.app.service.cache.AnalyticsCacheService;
 
 @ExtendWith(MockitoExtension.class)
 class MonthlySnapshotServiceTest {
@@ -32,11 +33,13 @@ class MonthlySnapshotServiceTest {
     private TransactionRepository transactionRepository;
     @Mock
     private MemberMonthlySnapshotRepository snapshotRepository;
+    @Mock
+    private AnalyticsCacheService analyticsCacheService;
 
     private final FinancialAnalysisProperties properties = new FinancialAnalysisProperties();
 
     private MonthlySnapshotService service() {
-        return new MonthlySnapshotService(transactionRepository, snapshotRepository, properties);
+        return new MonthlySnapshotService(transactionRepository, snapshotRepository, properties, analyticsCacheService);
     }
 
     private Member member() {

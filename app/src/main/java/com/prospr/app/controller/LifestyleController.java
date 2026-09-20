@@ -5,6 +5,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,6 +24,8 @@ import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.service.LifestyleAnalysisService;
 import com.prospr.app.service.LifestyleCategoryCatalog;
 import com.prospr.app.service.LifestyleStatus;
+import com.prospr.app.service.cache.AnalyticsCacheService;
+import com.prospr.app.service.cache.CacheKeys;
 
 @RestController
 @RequestMapping("/api/lifestyle")
@@ -35,15 +38,18 @@ public class LifestyleController {
     private final LifestyleCategoryCatalog categoryCatalog;
     private final MemberRepository memberRepository;
     private final LifestyleProperties lifestyleProperties;
+    private final AnalyticsCacheService analyticsCacheService;
 
     public LifestyleController(LifestyleAnalysisService lifestyleAnalysisService,
                                 LifestyleCategoryCatalog categoryCatalog,
                                 MemberRepository memberRepository,
-                                LifestyleProperties lifestyleProperties) {
+                                LifestyleProperties lifestyleProperties,
+                                AnalyticsCacheService analyticsCacheService) {
         this.lifestyleAnalysisService = lifestyleAnalysisService;
         this.categoryCatalog = categoryCatalog;
         this.memberRepository = memberRepository;
         this.lifestyleProperties = lifestyleProperties;
+        this.analyticsCacheService = analyticsCacheService;
     }
 
     /** Runs lifestyle analysis against the member's already-stored transaction history. */
@@ -68,13 +74,34 @@ public class LifestyleController {
                 .build());
     }
 
+    /**
+     * Cache-aside: Redis first, falling back to the existing Postgres-backed lookup + mapping on a
+     * miss (or if Redis is unavailable). A cached response's {@code periodLabel}/{@code monthToDate}
+     * fields are computed relative to "now" at write time, so they can be up to the cache TTL stale
+     * right at a month boundary - an acceptable trade for a 30-minute TTL, not worth invalidating on
+     * a timer for.
+     */
     @GetMapping("/insights")
     public ResponseEntity<List<LifestyleInsightResponse>> insights(Authentication authentication) {
         Member member = resolveMember(authentication);
-        List<LifestyleInsightResponse> insights = lifestyleAnalysisService.getActiveInsightsForCurrentMonth(member)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+
+        Optional<List<LifestyleInsightResponse>> cached = analyticsCacheService.getLifestyleCreep(member.getId());
+        if (cached.isPresent()) {
+            return ResponseEntity.ok(cached.get());
+        }
+        List<LifestyleInsightResponse> insights = analyticsCacheService.withStampedeGuard(
+                CacheKeys.lifestyleCreep(member.getId()), () -> {
+                    Optional<List<LifestyleInsightResponse>> recheck = analyticsCacheService.getLifestyleCreep(member.getId());
+                    if (recheck.isPresent()) {
+                        return recheck.get();
+                    }
+                    List<LifestyleInsightResponse> computed = lifestyleAnalysisService.getActiveInsightsForCurrentMonth(member)
+                            .stream()
+                            .map(this::toResponse)
+                            .toList();
+                    analyticsCacheService.putLifestyleCreep(member.getId(), computed);
+                    return computed;
+                });
         return ResponseEntity.ok(insights);
     }
 

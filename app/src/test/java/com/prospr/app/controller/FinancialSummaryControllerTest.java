@@ -1,14 +1,19 @@
 package com.prospr.app.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +29,7 @@ import com.prospr.app.repository.MemberMonthlySummaryRepository;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.service.CategoryTaxonomy;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
+import com.prospr.app.service.cache.AnalyticsCacheService;
 
 @ExtendWith(MockitoExtension.class)
 class FinancialSummaryControllerTest {
@@ -37,13 +43,15 @@ class FinancialSummaryControllerTest {
     @Mock
     private FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
     @Mock
+    private AnalyticsCacheService analyticsCacheService;
+    @Mock
     private Authentication authentication;
 
     private final CategoryTaxonomy categoryTaxonomy = new CategoryTaxonomy();
 
     private FinancialSummaryController controller() {
         return new FinancialSummaryController(snapshotRepository, summaryRepository, memberRepository,
-                financialAnalysisOrchestratorService, categoryTaxonomy);
+                financialAnalysisOrchestratorService, categoryTaxonomy, analyticsCacheService);
     }
 
     private Member member() {
@@ -53,6 +61,15 @@ class FinancialSummaryControllerTest {
     private void stubCaller(Member member) {
         when(authentication.getName()).thenReturn(member.getEmail());
         when(memberRepository.findByEmail(member.getEmail())).thenReturn(Optional.of(member));
+    }
+
+    /** Simulates an always-empty cache: reads miss, and the stampede guard just runs the loader
+     *  inline (single-threaded test, no actual concurrency to guard against). */
+    @SuppressWarnings("unchecked")
+    private void stubCacheMiss() {
+        when(analyticsCacheService.getSpendingSummary(any())).thenReturn(Optional.empty());
+        when(analyticsCacheService.withStampedeGuard(anyString(), any()))
+                .thenAnswer(invocation -> ((Supplier<Object>) invocation.getArgument(1)).get());
     }
 
     private MemberMonthlySnapshot snapshot(Member member, int year, int month, String income, String expenses, String rate) {
@@ -71,6 +88,7 @@ class FinancialSummaryControllerTest {
     void returnsMonthsInAscendingOrderWithMonthOverMonthDeltas() {
         Member member = member();
         stubCaller(member);
+        stubCacheMiss();
         // Repository returns descending (most recent first) - controller must flip to ascending.
         when(snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(member.getId())).thenReturn(List.of(
                 snapshot(member, 2026, 8, "60000", "40000", "33.33"),
@@ -93,6 +111,7 @@ class FinancialSummaryControllerTest {
     void defaultsToSixMonthsWhenNoneRequested() {
         Member member = member();
         stubCaller(member);
+        stubCacheMiss();
         when(snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(member.getId())).thenReturn(List.of());
 
         List<MonthlySnapshotResponse> result = controller().monthly(null, authentication).getBody();
@@ -108,5 +127,34 @@ class FinancialSummaryControllerTest {
         controller().recompute(authentication);
 
         verify(financialAnalysisOrchestratorService, times(1)).recomputeForMember(member);
+    }
+
+    @Test
+    void cacheHitSkipsThePostgresReadEntirely() {
+        Member member = member();
+        stubCaller(member);
+        MonthlySnapshotResponse cachedMonth = MonthlySnapshotResponse.builder()
+                .year(2026).month(8).monthLabel("August 2026").build();
+        when(analyticsCacheService.getSpendingSummary(member.getId())).thenReturn(Optional.of(List.of(cachedMonth)));
+
+        List<MonthlySnapshotResponse> result = controller().monthly(6, authentication).getBody();
+
+        assertThat(result).containsExactly(cachedMonth);
+        verifyNoInteractions(snapshotRepository);
+    }
+
+    @Test
+    void cacheMissComputesFromPostgresAndWritesBackToCache() {
+        Member member = member();
+        stubCaller(member);
+        stubCacheMiss();
+        when(snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(member.getId())).thenReturn(List.of(
+                snapshot(member, 2026, 8, "60000", "40000", "33.33")));
+        when(summaryRepository.findByMemberIdAndYearAndMonth(member.getId(), 2026, 8)).thenReturn(List.of());
+
+        List<MonthlySnapshotResponse> result = controller().monthly(6, authentication).getBody();
+
+        assertThat(result).hasSize(1);
+        verify(analyticsCacheService).putSpendingSummary(eq(member.getId()), any());
     }
 }

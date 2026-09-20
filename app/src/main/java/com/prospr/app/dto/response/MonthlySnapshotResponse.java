@@ -6,9 +6,14 @@ import java.util.List;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
+/** {@code @Jacksonized} lets this cache cleanly as JSON (Jackson needs a builder it knows how to
+ *  deserialize through - a plain {@code @Builder} with no setters/no-arg constructor can't be
+ *  reconstructed from JSON otherwise). Additive only; no other behavior change. */
 @Getter
 @Builder
+@Jacksonized
 public class MonthlySnapshotResponse {
 
     private Integer year;

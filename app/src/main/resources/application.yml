@@ -38,3 +38,22 @@ recurring-expense:
   active-lapse-multiplier: ${RECURRING_ACTIVE_LAPSE_MULTIPLIER:1.5}
   high-confidence-min-occurrences: ${RECURRING_HIGH_CONFIDENCE_MIN_OCCURRENCES:4}
   high-confidence-amount-tolerance-percent: ${RECURRING_HIGH_CONFIDENCE_AMOUNT_TOLERANCE_PERCENT:5.0}
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      timeout: ${REDIS_TIMEOUT_MS:2000}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT_MS:2000}
+
+prospr:
+  cache:
+    enabled: ${PROSPR_CACHE_ENABLED:true}
+    lifestyle-creep-ttl-minutes: ${PROSPR_CACHE_LIFESTYLE_CREEP_TTL:30}
+    safety-net-ttl-minutes: ${PROSPR_CACHE_SAFETY_NET_TTL:30}
+    spending-summary-ttl-minutes: ${PROSPR_CACHE_SPENDING_SUMMARY_TTL:30}

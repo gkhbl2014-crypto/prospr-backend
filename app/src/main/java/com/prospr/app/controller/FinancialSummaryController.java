@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -26,6 +28,8 @@ import com.prospr.app.repository.MemberMonthlySummaryRepository;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.service.CategoryTaxonomy;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
+import com.prospr.app.service.cache.AnalyticsCacheService;
+import com.prospr.app.service.cache.CacheKeys;
 
 /** Self-only: every endpoint resolves the member from the JWT, matching every other controller here. */
 @RestController
@@ -40,29 +44,58 @@ public class FinancialSummaryController {
     private final MemberRepository memberRepository;
     private final FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
     private final CategoryTaxonomy categoryTaxonomy;
+    private final AnalyticsCacheService analyticsCacheService;
 
     public FinancialSummaryController(MemberMonthlySnapshotRepository snapshotRepository,
                                        MemberMonthlySummaryRepository summaryRepository,
                                        MemberRepository memberRepository,
                                        FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService,
-                                       CategoryTaxonomy categoryTaxonomy) {
+                                       CategoryTaxonomy categoryTaxonomy,
+                                       AnalyticsCacheService analyticsCacheService) {
         this.snapshotRepository = snapshotRepository;
         this.summaryRepository = summaryRepository;
         this.memberRepository = memberRepository;
         this.financialAnalysisOrchestratorService = financialAnalysisOrchestratorService;
         this.categoryTaxonomy = categoryTaxonomy;
+        this.analyticsCacheService = analyticsCacheService;
     }
 
+    /**
+     * Cache-aside, keyed on the member only (not on {@code months}) - the cache holds the member's
+     * whole snapshot history as one entry, and the requested window is sliced from it after the
+     * cache read. This avoids a combinatorial key per distinct {@code months} value and the wildcard
+     * eviction that would otherwise require.
+     */
     @GetMapping("/monthly")
     public ResponseEntity<List<MonthlySnapshotResponse>> monthly(
             @RequestParam(name = "months", required = false) Integer months, Authentication authentication) {
         Member member = resolveMember(authentication);
         int limit = (months == null || months < 1) ? DEFAULT_MONTHS : months;
 
-        List<MemberMonthlySnapshot> descending = snapshotRepository
-                .findByMemberIdOrderByYearDescMonthDesc(member.getId());
-        List<MemberMonthlySnapshot> window = descending.stream().limit(limit).toList();
-        List<MemberMonthlySnapshot> ascending = new ArrayList<>(window);
+        List<MonthlySnapshotResponse> ascending = loadAscendingHistory(member);
+        int fromIndex = Math.max(0, ascending.size() - limit);
+        return ResponseEntity.ok(ascending.subList(fromIndex, ascending.size()));
+    }
+
+    private List<MonthlySnapshotResponse> loadAscendingHistory(Member member) {
+        Optional<List<MonthlySnapshotResponse>> cached = analyticsCacheService.getSpendingSummary(member.getId());
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        return analyticsCacheService.withStampedeGuard(CacheKeys.spendingSummary(member.getId()), () -> {
+            Optional<List<MonthlySnapshotResponse>> recheck = analyticsCacheService.getSpendingSummary(member.getId());
+            if (recheck.isPresent()) {
+                return recheck.get();
+            }
+            List<MonthlySnapshotResponse> computed = computeAscendingHistory(member.getId());
+            analyticsCacheService.putSpendingSummary(member.getId(), computed);
+            return computed;
+        });
+    }
+
+    private List<MonthlySnapshotResponse> computeAscendingHistory(UUID memberId) {
+        List<MemberMonthlySnapshot> descending = snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(memberId);
+        List<MemberMonthlySnapshot> ascending = new ArrayList<>(descending);
         ascending.sort(Comparator.comparing(MemberMonthlySnapshot::getYear)
                 .thenComparing(MemberMonthlySnapshot::getMonth));
 
@@ -70,9 +103,9 @@ public class FinancialSummaryController {
         for (int i = 0; i < ascending.size(); i++) {
             MemberMonthlySnapshot current = ascending.get(i);
             MemberMonthlySnapshot previous = i > 0 ? ascending.get(i - 1) : null;
-            responses.add(toResponse(member.getId(), current, previous));
+            responses.add(toResponse(memberId, current, previous));
         }
-        return ResponseEntity.ok(responses);
+        return responses;
     }
 
     @PostMapping("/recompute")
@@ -82,7 +115,7 @@ public class FinancialSummaryController {
         return ResponseEntity.noContent().build();
     }
 
-    private MonthlySnapshotResponse toResponse(java.util.UUID memberId, MemberMonthlySnapshot snapshot,
+    private MonthlySnapshotResponse toResponse(UUID memberId, MemberMonthlySnapshot snapshot,
                                                 MemberMonthlySnapshot previous) {
         String monthLabel = Month.of(snapshot.getMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
                 + " " + snapshot.getYear();

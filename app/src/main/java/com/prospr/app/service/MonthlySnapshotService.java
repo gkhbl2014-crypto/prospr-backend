@@ -18,6 +18,7 @@ import com.prospr.app.entity.MemberMonthlySnapshot;
 import com.prospr.app.entity.Transaction;
 import com.prospr.app.repository.MemberMonthlySnapshotRepository;
 import com.prospr.app.repository.TransactionRepository;
+import com.prospr.app.service.cache.AnalyticsCacheService;
 
 /**
  * Builds the whole-month income/expense/savings picture ({@link MemberMonthlySnapshot}) for the
@@ -35,13 +36,16 @@ public class MonthlySnapshotService {
     private final TransactionRepository transactionRepository;
     private final MemberMonthlySnapshotRepository snapshotRepository;
     private final FinancialAnalysisProperties properties;
+    private final AnalyticsCacheService analyticsCacheService;
 
     public MonthlySnapshotService(TransactionRepository transactionRepository,
                                    MemberMonthlySnapshotRepository snapshotRepository,
-                                   FinancialAnalysisProperties properties) {
+                                   FinancialAnalysisProperties properties,
+                                   AnalyticsCacheService analyticsCacheService) {
         this.transactionRepository = transactionRepository;
         this.snapshotRepository = snapshotRepository;
         this.properties = properties;
+        this.analyticsCacheService = analyticsCacheService;
     }
 
     private static final class MonthTotals {
@@ -65,6 +69,7 @@ public class MonthlySnapshotService {
         for (int i = 0; i < months; i++) {
             recomputeMonth(member, current.minusMonths(i), all);
         }
+        analyticsCacheService.evictSpendingSummary(member.getId());
         log.info("Recomputed {} month(s) of financial snapshot for member '{}'", months, member.getId());
     }
 

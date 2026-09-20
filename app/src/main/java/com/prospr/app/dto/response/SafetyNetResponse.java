@@ -6,9 +6,14 @@ import java.util.List;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
+/** {@code @Jacksonized} on this class and every nested builder below lets the whole tree cache
+ *  cleanly as JSON (a plain {@code @Builder} with no setters/no-arg constructor can't be
+ *  reconstructed from JSON by Jackson otherwise). Additive only; no other behavior change. */
 @Getter
 @Builder
+@Jacksonized
 public class SafetyNetResponse {
 
     private Health health;
@@ -19,6 +24,7 @@ public class SafetyNetResponse {
 
     @Getter
     @Builder
+    @Jacksonized
     public static class Health {
         private BigDecimal individualCoverage;
         private BigDecimal sharedCoverage;
@@ -29,6 +35,7 @@ public class SafetyNetResponse {
 
     @Getter
     @Builder
+    @Jacksonized
     public static class Life {
         private BigDecimal totalCoverage;
         private BigDecimal estimatedTarget;
@@ -38,6 +45,7 @@ public class SafetyNetResponse {
 
     @Getter
     @Builder
+    @Jacksonized
     public static class EmergencyFund {
         private BigDecimal currentAmount;
         private BigDecimal averageMonthlyEssentialExpense;
@@ -51,6 +59,7 @@ public class SafetyNetResponse {
     /** severity: INFO | WARNING | CRITICAL */
     @Getter
     @Builder
+    @Jacksonized
     public static class Insight {
         private String type;
         private String severity;
