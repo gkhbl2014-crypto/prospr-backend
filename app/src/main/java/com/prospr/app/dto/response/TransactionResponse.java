@@ -31,4 +31,16 @@ public class TransactionResponse {
     private boolean hidden;
     /** "SETU" (parsed from an AA session) or "MANUAL" (PDF/CSV/XLSX import). */
     private String source;
+    /** Fine-grained code, e.g. "FOOD_DELIVERY" - a user's own category override, if any, else the
+     *  system-derived category. Null if never categorized or LOW-confidence (deliberately left
+     *  Unclassified rather than guessed). */
+    private String effectiveCategory;
+    /** One of the 20 user-facing top-level names ("Food & Dining", "Loan/EMI", ...), derived from
+     *  effectiveCategory via CategoryTaxonomy. Never null - "Unclassified" when effectiveCategory is. */
+    private String topLevelCategory;
+    /** HIGH | MEDIUM | LOW | null (never categorized yet). */
+    private String categoryConfidence;
+    /** INCOME|ESSENTIAL|DISCRETIONARY|INVESTMENT|DEBT_REPAYMENT|INSURANCE|INTERNAL_TRANSFER|
+     *  CASH_WITHDRAWAL|UNKNOWN|null (never classified yet). */
+    private String transactionType;
 }

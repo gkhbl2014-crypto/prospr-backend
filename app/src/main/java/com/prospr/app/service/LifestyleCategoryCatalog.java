@@ -32,7 +32,8 @@ public class LifestyleCategoryCatalog {
     /** Non-discretionary/essential categories: never treated as lifestyle creep even if categorized. */
     private static final Set<String> EXCLUDED_CATEGORIES = Set.of(
             "RENT", "EMI", "LOAN_PAYMENT", "INSURANCE", "MEDICAL", "TAX", "TRANSFER",
-            "INVESTMENT", "SAVINGS", "CASH_WITHDRAWAL", "CREDIT_CARD_PAYMENT");
+            "INVESTMENT", "SAVINGS", "CASH_WITHDRAWAL", "CREDIT_CARD_PAYMENT",
+            "EDUCATION", "TRANSPORTATION", "FUEL", "SALARY_INCOME");
 
     public Set<String> lifestyleCategories() {
         return LIFESTYLE_CATEGORY_LABELS.keySet();

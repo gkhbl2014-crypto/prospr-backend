@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.prospr.app.config.LifestyleProperties;
 import com.prospr.app.dto.response.LifestyleInsightResponse;
 import com.prospr.app.dto.response.LifestyleStatusResponse;
 import com.prospr.app.entity.LifestyleInsight;
@@ -33,13 +34,16 @@ public class LifestyleController {
     private final LifestyleAnalysisService lifestyleAnalysisService;
     private final LifestyleCategoryCatalog categoryCatalog;
     private final MemberRepository memberRepository;
+    private final LifestyleProperties lifestyleProperties;
 
     public LifestyleController(LifestyleAnalysisService lifestyleAnalysisService,
                                 LifestyleCategoryCatalog categoryCatalog,
-                                MemberRepository memberRepository) {
+                                MemberRepository memberRepository,
+                                LifestyleProperties lifestyleProperties) {
         this.lifestyleAnalysisService = lifestyleAnalysisService;
         this.categoryCatalog = categoryCatalog;
         this.memberRepository = memberRepository;
+        this.lifestyleProperties = lifestyleProperties;
     }
 
     /** Runs lifestyle analysis against the member's already-stored transaction history. */
@@ -121,10 +125,12 @@ public class LifestyleController {
             case LifestyleStatus.CONSENT_PENDING -> "Waiting for account consent to be approved.";
             case LifestyleStatus.FETCHING_HISTORY -> "Loading your stored transaction history.";
             case LifestyleStatus.CATEGORIZING -> "Categorizing your spending.";
-            case LifestyleStatus.BUILDING_BASELINE -> "Building your 3-month spending baseline.";
+            case LifestyleStatus.BUILDING_BASELINE ->
+                    "Building your " + lifestyleProperties.getBaselineMonths() + "-month spending baseline.";
             case LifestyleStatus.READY -> "Your lifestyle insights are ready.";
             case LifestyleStatus.INSUFFICIENT_HISTORY ->
-                    "We need at least 3 completed months of transaction history to build a reliable baseline.";
+                    "We need at least " + lifestyleProperties.getBaselineMonths()
+                            + " completed months of transaction history to build a reliable baseline.";
             case LifestyleStatus.ERROR -> "Something went wrong while analyzing your spending.";
             default -> "";
         };

@@ -27,8 +27,8 @@ import com.prospr.app.exception.ImportValidationException;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.repository.TransactionRepository;
-import com.prospr.app.service.LifestyleAnalysisService;
-import com.prospr.app.service.SafetyNetService;
+import com.prospr.app.service.CategoryTaxonomy;
+import com.prospr.app.service.FinancialAnalysisOrchestratorService;
 import com.prospr.app.service.TransactionCategorizationService;
 import com.prospr.app.service.statement.ImportDuplicateDetectionService;
 import com.prospr.app.service.statement.ImportDuplicateDetectionService.DuplicateCheck;
@@ -53,23 +53,23 @@ public class TransactionImportController {
     private final TransactionCategorizationService categorizationService;
     private final TransactionRepository transactionRepository;
     private final MemberRepository memberRepository;
-    private final SafetyNetService safetyNetService;
-    private final LifestyleAnalysisService lifestyleAnalysisService;
+    private final FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
+    private final CategoryTaxonomy categoryTaxonomy;
 
     public TransactionImportController(StatementParserRegistry parserRegistry,
                                         ImportDuplicateDetectionService duplicateDetectionService,
                                         TransactionCategorizationService categorizationService,
                                         TransactionRepository transactionRepository,
                                         MemberRepository memberRepository,
-                                        SafetyNetService safetyNetService,
-                                        LifestyleAnalysisService lifestyleAnalysisService) {
+                                        FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService,
+                                        CategoryTaxonomy categoryTaxonomy) {
         this.parserRegistry = parserRegistry;
         this.duplicateDetectionService = duplicateDetectionService;
         this.categorizationService = categorizationService;
         this.transactionRepository = transactionRepository;
         this.memberRepository = memberRepository;
-        this.safetyNetService = safetyNetService;
-        this.lifestyleAnalysisService = lifestyleAnalysisService;
+        this.financialAnalysisOrchestratorService = financialAnalysisOrchestratorService;
+        this.categoryTaxonomy = categoryTaxonomy;
     }
 
     @PostMapping("/preview")
@@ -116,8 +116,7 @@ public class TransactionImportController {
         categorizationService.categorize(newTransactions);
         List<Transaction> saved = transactionRepository.saveAll(newTransactions);
 
-        safetyNetService.recomputeForMember(member);
-        lifestyleAnalysisService.recomputeIfEnabled(member);
+        financialAnalysisOrchestratorService.recomputeForMember(member);
 
         List<TransactionResponse> responses = saved.stream().map(this::toTransactionResponse).toList();
         return ResponseEntity.ok(ImportConfirmResponse.builder()
@@ -173,6 +172,7 @@ public class TransactionImportController {
     }
 
     private TransactionResponse toTransactionResponse(Transaction txn) {
+        String effectiveCategory = txn.getEffectiveCategory();
         return TransactionResponse.builder()
                 .id(txn.getId())
                 .memberId(txn.getMember().getId())
@@ -188,6 +188,10 @@ public class TransactionImportController {
                 .transactionTimestamp(txn.getTransactionTimestamp())
                 .hidden(Boolean.TRUE.equals(txn.getIsHidden()))
                 .source(txn.getSource())
+                .effectiveCategory(effectiveCategory)
+                .topLevelCategory(categoryTaxonomy.topLevelName(effectiveCategory))
+                .categoryConfidence(txn.getCategoryConfidence())
+                .transactionType(txn.getTransactionType())
                 .build();
     }
 

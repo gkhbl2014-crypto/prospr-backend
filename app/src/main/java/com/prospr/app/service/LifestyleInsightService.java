@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.prospr.app.config.LifestyleProperties;
 import com.prospr.app.entity.LifestyleBaseline;
 import com.prospr.app.entity.LifestyleInsight;
 import com.prospr.app.entity.Member;
@@ -26,8 +27,8 @@ import com.prospr.app.repository.MemberMonthlySummaryRepository;
  * updating an existing row in place rather than inserting a second one.
  *
  * Current-month handling: the current calendar month is very likely partial (e.g. "day 23 of 31").
- * Comparing 23 days of spend against a full 3-month average would unfairly flag normal spending as
- * a spike. So the baseline used to compute differenceAmount/increasePercentage/severity is prorated
+ * Comparing 23 days of spend against a full multi-month average would unfairly flag normal spending
+ * as a spike. So the baseline used to compute differenceAmount/increasePercentage/severity is prorated
  * to "expected spend by today" (baselineAmount * dayOfMonth / daysInMonth) when the month isn't yet
  * complete; the raw, full-month baseline is still stored/returned as-is for display ("Normal:
  * Rs4,500"). Once the month completes, prorated == raw, so the two conventions converge and match
@@ -46,17 +47,20 @@ public class LifestyleInsightService {
     private final LifestyleInsightRepository insightRepository;
     private final LifestyleCreepAnalyzer analyzer;
     private final LifestyleCategoryCatalog catalog;
+    private final LifestyleProperties properties;
 
     public LifestyleInsightService(MemberMonthlySummaryRepository summaryRepository,
                                     LifestyleBaselineRepository baselineRepository,
                                     LifestyleInsightRepository insightRepository,
                                     LifestyleCreepAnalyzer analyzer,
-                                    LifestyleCategoryCatalog catalog) {
+                                    LifestyleCategoryCatalog catalog,
+                                    LifestyleProperties properties) {
         this.summaryRepository = summaryRepository;
         this.baselineRepository = baselineRepository;
         this.insightRepository = insightRepository;
         this.analyzer = analyzer;
         this.catalog = catalog;
+        this.properties = properties;
     }
 
     public void recomputeForMember(Member member, YearMonth currentMonth, LocalDate today) {
@@ -129,6 +133,7 @@ public class LifestyleInsightService {
         String label = catalog.label(category);
         long roundedPercent = Math.round(result.increasePercentage());
         return "Your " + label + " expenses are " + roundedPercent
-                + "% higher than your average spending over the previous 3 months.";
+                + "% higher than your average spending over the previous " + properties.getBaselineMonths()
+                + " months.";
     }
 }

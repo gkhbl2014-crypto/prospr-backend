@@ -24,6 +24,7 @@ import com.prospr.app.entity.Transaction;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.repository.TransactionRepository;
+import com.prospr.app.service.CategoryTaxonomy;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionControllerTest {
@@ -35,8 +36,10 @@ class TransactionControllerTest {
     @Mock
     private Authentication authentication;
 
+    private final CategoryTaxonomy categoryTaxonomy = new CategoryTaxonomy();
+
     private TransactionController controller() {
-        return new TransactionController(transactionRepository, memberRepository);
+        return new TransactionController(transactionRepository, memberRepository, categoryTaxonomy);
     }
 
     private Member member(String email, Family family) {

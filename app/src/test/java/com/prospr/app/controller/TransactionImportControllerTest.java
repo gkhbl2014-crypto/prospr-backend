@@ -30,8 +30,8 @@ import com.prospr.app.entity.Member;
 import com.prospr.app.entity.Transaction;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.repository.TransactionRepository;
-import com.prospr.app.service.LifestyleAnalysisService;
-import com.prospr.app.service.SafetyNetService;
+import com.prospr.app.service.CategoryTaxonomy;
+import com.prospr.app.service.FinancialAnalysisOrchestratorService;
 import com.prospr.app.service.TransactionCategorizationService;
 import com.prospr.app.service.statement.ImportDuplicateDetectionService;
 import com.prospr.app.service.statement.ParsedTransactionRow;
@@ -47,24 +47,24 @@ class TransactionImportControllerTest {
     @Mock
     private MemberRepository memberRepository;
     @Mock
-    private SafetyNetService safetyNetService;
-    @Mock
-    private LifestyleAnalysisService lifestyleAnalysisService;
+    private FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
     @Mock
     private Authentication authentication;
 
     private final ImportDuplicateDetectionService duplicateDetectionService = new ImportDuplicateDetectionService();
     private final TransactionCategorizationService categorizationService =
-            new TransactionCategorizationService(null, new com.prospr.app.service.CategoryFallbackRules()) {
+            new TransactionCategorizationService(null, new com.prospr.app.service.CategoryFallbackRules(), null) {
                 @Override
                 public int categorize(List<Transaction> transactions) {
                     return 0; // no-op for this controller-level test - categorization itself is tested elsewhere
                 }
             };
 
+    private final CategoryTaxonomy categoryTaxonomy = new CategoryTaxonomy();
+
     private TransactionImportController controller() {
         return new TransactionImportController(parserRegistry, duplicateDetectionService, categorizationService,
-                transactionRepository, memberRepository, safetyNetService, lifestyleAnalysisService);
+                transactionRepository, memberRepository, financialAnalysisOrchestratorService, categoryTaxonomy);
     }
 
     private Member member() {
@@ -92,8 +92,7 @@ class TransactionImportControllerTest {
         assertThat(response.getRows().get(0).isPossibleDuplicate()).isFalse();
         verify(transactionRepository, never()).save(any());
         verify(transactionRepository, never()).saveAll(anyList());
-        verifyNoInteractions(safetyNetService);
-        verifyNoInteractions(lifestyleAnalysisService);
+        verifyNoInteractions(financialAnalysisOrchestratorService);
     }
 
     @Test
@@ -188,7 +187,7 @@ class TransactionImportControllerTest {
     }
 
     @Test
-    void confirmTriggersSafetyNetRecompute() {
+    void confirmTriggersFinancialAnalysisRecompute() {
         Member member = member();
         stubCaller(member);
         when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -202,24 +201,6 @@ class TransactionImportControllerTest {
 
         controller().confirm(request, authentication);
 
-        verify(safetyNetService, times(1)).recomputeForMember(member);
-    }
-
-    @Test
-    void confirmTriggersLifestyleRecomputeIfEnabled() {
-        Member member = member();
-        stubCaller(member);
-        when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        ImportConfirmRow row = new ImportConfirmRow();
-        row.setValueDate(LocalDate.of(2023, 4, 1));
-        row.setType("CREDIT");
-        row.setAmount(new BigDecimal("1000.00"));
-        ImportConfirmRequest request = new ImportConfirmRequest();
-        request.setRows(List.of(row));
-
-        controller().confirm(request, authentication);
-
-        verify(lifestyleAnalysisService, times(1)).recomputeIfEnabled(member);
+        verify(financialAnalysisOrchestratorService, times(1)).recomputeForMember(member);
     }
 }

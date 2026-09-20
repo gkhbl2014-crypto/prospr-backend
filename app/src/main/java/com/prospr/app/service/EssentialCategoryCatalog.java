@@ -11,15 +11,15 @@ import org.springframework.stereotype.Component;
  * "not lifestyle creep" for Lifestyle's purposes, but they're financial transfers rather than living
  * expenses, so they're intentionally left out here.
  *
- * GROCERIES and UTILITIES are included even though EDUCATION and ESSENTIAL_TRANSPORT (also named in
- * the original Safety Net spec) are not - there's no reliable keyword signal yet to categorize
- * education or transport spend, so those two are a documented gap rather than a silent omission.
+ * EDUCATION, TRANSPORTATION and FUEL were previously a documented gap (no keyword signal existed to
+ * categorize them) - {@link CategoryFallbackRules} now has rules for all three, so they're included.
  */
 @Component
 public class EssentialCategoryCatalog {
 
     private static final Set<String> ESSENTIAL_CATEGORIES = Set.of(
-            "RENT", "EMI", "LOAN_PAYMENT", "INSURANCE", "MEDICAL", "GROCERIES", "UTILITIES");
+            "RENT", "EMI", "LOAN_PAYMENT", "INSURANCE", "MEDICAL", "GROCERIES", "UTILITIES",
+            "EDUCATION", "TRANSPORTATION", "FUEL");
 
     public Set<String> essentialCategories() {
         return ESSENTIAL_CATEGORIES;

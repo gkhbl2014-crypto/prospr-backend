@@ -22,8 +22,9 @@ import com.prospr.app.repository.MemberMonthlySummaryRepository;
 import com.prospr.app.repository.TransactionRepository;
 
 /**
- * Builds each member's "normal spend" baseline per lifestyle category from the previous 3
- * COMPLETED calendar months (never the current, possibly-partial, month).
+ * Builds each member's "normal spend" baseline per lifestyle category from the previous
+ * {@link LifestyleProperties#getBaselineMonths()} COMPLETED calendar months (never the current,
+ * possibly-partial, month).
  */
 @Service
 public class LifestyleBaselineService {

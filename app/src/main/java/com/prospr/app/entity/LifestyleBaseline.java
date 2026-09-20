@@ -25,7 +25,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
-/** A member's "normal" monthly spend per lifestyle category, from the previous 3 completed months. */
+/** A member's "normal" monthly spend per lifestyle category, from the previous N completed months
+ *  (N = {@code lifestyle.baseline-months}, currently 6). */
 @Entity
 @Table(name = "lifestyle_baseline")
 @Getter

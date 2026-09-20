@@ -22,6 +22,7 @@ import com.prospr.app.entity.Transaction;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.repository.TransactionRepository;
+import com.prospr.app.service.CategoryTaxonomy;
 
 @RestController
 @RequestMapping("/api/transactions")
@@ -29,10 +30,13 @@ public class TransactionController {
 
     private final TransactionRepository transactionRepository;
     private final MemberRepository memberRepository;
+    private final CategoryTaxonomy categoryTaxonomy;
 
-    public TransactionController(TransactionRepository transactionRepository, MemberRepository memberRepository) {
+    public TransactionController(TransactionRepository transactionRepository, MemberRepository memberRepository,
+                                  CategoryTaxonomy categoryTaxonomy) {
         this.transactionRepository = transactionRepository;
         this.memberRepository = memberRepository;
+        this.categoryTaxonomy = categoryTaxonomy;
     }
 
     /**
@@ -72,6 +76,7 @@ public class TransactionController {
     }
 
     private TransactionResponse toResponse(Transaction txn) {
+        String effectiveCategory = txn.getEffectiveCategory();
         return TransactionResponse.builder()
                 .id(txn.getId())
                 .memberId(txn.getMember().getId())
@@ -87,6 +92,10 @@ public class TransactionController {
                 .transactionTimestamp(txn.getTransactionTimestamp())
                 .hidden(Boolean.TRUE.equals(txn.getIsHidden()))
                 .source(txn.getSource())
+                .effectiveCategory(effectiveCategory)
+                .topLevelCategory(categoryTaxonomy.topLevelName(effectiveCategory))
+                .categoryConfidence(txn.getCategoryConfidence())
+                .transactionType(txn.getTransactionType())
                 .build();
     }
 

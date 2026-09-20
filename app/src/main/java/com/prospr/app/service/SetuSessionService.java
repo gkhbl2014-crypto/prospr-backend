@@ -40,8 +40,7 @@ public class SetuSessionService {
     private final TransactionRepository transactionRepository;
     private final InsuranceRepository insuranceRepository;
     private final MutualFundHoldingRepository mutualFundHoldingRepository;
-    private final LifestyleAnalysisService lifestyleAnalysisService;
-    private final SafetyNetService safetyNetService;
+    private final FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
 
     public SetuSessionService(WebClient webClient, SetuProperties properties,
                                SetuAuthenticationService authenticationService,
@@ -51,8 +50,7 @@ public class SetuSessionService {
                                TransactionRepository transactionRepository,
                                InsuranceRepository insuranceRepository,
                                MutualFundHoldingRepository mutualFundHoldingRepository,
-                               LifestyleAnalysisService lifestyleAnalysisService,
-                               SafetyNetService safetyNetService) {
+                               FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService) {
         this.webClient = webClient;
         this.properties = properties;
         this.authenticationService = authenticationService;
@@ -62,8 +60,7 @@ public class SetuSessionService {
         this.transactionRepository = transactionRepository;
         this.insuranceRepository = insuranceRepository;
         this.mutualFundHoldingRepository = mutualFundHoldingRepository;
-        this.lifestyleAnalysisService = lifestyleAnalysisService;
-        this.safetyNetService = safetyNetService;
+        this.financialAnalysisOrchestratorService = financialAnalysisOrchestratorService;
     }
 
     public com.prospr.app.dto.response.SetuSessionResponse createSession(String consentId) {
@@ -232,22 +229,13 @@ public class SetuSessionService {
                     mutualFundHoldings.size(), member.getId(), session.getId());
         }
 
-        // Lifestyle analysis is a no-op for members who never enabled it, and never throws - a
-        // failure here must never surface as a failure of the underlying Setu fetch/save above.
+        // Categorization/classification/recurring-detection/Lifestyle/Safety-Net all run as one
+        // pipeline (see FinancialAnalysisOrchestratorService) - a failure anywhere in it must never
+        // surface as a failure of the underlying Setu fetch/save above.
         try {
-            lifestyleAnalysisService.recomputeIfEnabled(member);
+            financialAnalysisOrchestratorService.recomputeForMember(member);
         } catch (Exception ex) {
-            log.error("Lifestyle analysis recompute failed for member '{}' after session '{}': {}",
-                    member.getId(), session.getId(), ex.getMessage(), ex);
-        }
-
-        // Safety Net has no opt-in gate (unlike Lifestyle above) - it recomputes unconditionally.
-        // Independent try/catch so a Safety Net failure never blocks the underlying Setu save, and
-        // is unaffected by whether the Lifestyle recompute above succeeded or failed.
-        try {
-            safetyNetService.recomputeForMember(member);
-        } catch (Exception ex) {
-            log.error("Safety Net recompute failed for member '{}' after session '{}': {}",
+            log.error("Financial analysis recompute failed for member '{}' after session '{}': {}",
                     member.getId(), session.getId(), ex.getMessage(), ex);
         }
     }

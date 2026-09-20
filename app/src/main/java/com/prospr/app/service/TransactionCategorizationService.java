@@ -4,22 +4,30 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.prospr.app.entity.MerchantAlias;
 import com.prospr.app.entity.MerchantCategory;
 import com.prospr.app.entity.Transaction;
 import com.prospr.app.repository.MerchantCategoryRepository;
 
 /**
- * Turns a raw transaction narration into merchantName/category/subcategory.
+ * Turns a raw transaction narration into merchantName/category/subcategory/confidence.
  *
- * Pipeline: extract a merchant token from the narration -> look it up (as a substring match)
- * against the {@code merchant_category} table -> if nothing matches, fall back to the small
- * keyword rule list in {@link CategoryFallbackRules} -> otherwise leave category null
+ * Pipeline: extract+normalize a merchant name from the narration -> look the raw narration up (as a
+ * substring match) against the {@code merchant_category} table -> if nothing matches, fall back to
+ * the small keyword rule list in {@link CategoryFallbackRules} -> otherwise leave category null
  * (uncategorized transactions are simply excluded from lifestyle sums downstream).
+ *
+ * A DB-table match is always HIGH confidence. A fallback-rule match is MEDIUM confidence when the
+ * rule is marked {@code specific} (a brand name, or a curated financial-purpose term Safety Net's
+ * essential-expense calculation depends on), or LOW confidence when the rule is a generic dictionary
+ * word ({@code specific=false}) - a LOW-confidence match is deliberately NOT assigned a category, to
+ * avoid guessing wrong on an ambiguous signal (e.g. "cafe" alone doesn't reliably mean dining).
  *
  * The original raw narration on the transaction is never modified.
  */
@@ -28,14 +36,28 @@ public class TransactionCategorizationService {
 
     private static final Logger log = LoggerFactory.getLogger(TransactionCategorizationService.class);
     private static final String DEBIT = "DEBIT";
+    private static final String CREDIT = "CREDIT";
+    private static final String SALARY_INCOME = "SALARY_INCOME";
+    private static final Set<String> SALARY_KEYWORDS = Set.of("salary", "sal credit", "salcredit", "payroll");
+
+    public static final String CONFIDENCE_HIGH = "HIGH";
+    public static final String CONFIDENCE_MEDIUM = "MEDIUM";
+    public static final String CONFIDENCE_LOW = "LOW";
+
+    public static final String SOURCE_MERCHANT_DB = "MERCHANT_DB";
+    public static final String SOURCE_FALLBACK_RULE = "FALLBACK_RULE";
+    public static final String SOURCE_NONE = "NONE";
 
     private final MerchantCategoryRepository merchantCategoryRepository;
     private final CategoryFallbackRules fallbackRules;
+    private final MerchantNormalizationService merchantNormalizationService;
 
     public TransactionCategorizationService(MerchantCategoryRepository merchantCategoryRepository,
-                                              CategoryFallbackRules fallbackRules) {
+                                              CategoryFallbackRules fallbackRules,
+                                              MerchantNormalizationService merchantNormalizationService) {
         this.merchantCategoryRepository = merchantCategoryRepository;
         this.fallbackRules = fallbackRules;
+        this.merchantNormalizationService = merchantNormalizationService;
     }
 
     /**
@@ -47,30 +69,73 @@ public class TransactionCategorizationService {
             return 0;
         }
         List<MerchantCategory> known = merchantCategoryRepository.findAll();
+        List<MerchantAlias> knownAliases = merchantNormalizationService.loadKnownAliases();
         int categorized = 0;
         for (Transaction txn : transactions) {
             if (txn.getCategory() != null) {
                 continue;
             }
             String narration = txn.getNarration();
-            txn.setMerchantName(extractMerchant(narration));
+            txn.setMerchantName(merchantNormalizationService.normalize(narration, knownAliases)
+                    .orElseGet(() -> extractMerchant(narration)));
 
-            // Only debit/expense transactions are ever categorized into a spend category; credits
-            // (salary, refunds, dividends) keep category=null so they can never be summed as spend.
+            String haystack = narration == null ? "" : narration.toLowerCase(Locale.ROOT);
+
+            if (CREDIT.equalsIgnoreCase(txn.getType())) {
+                if (matchesSalary(haystack)) {
+                    txn.setCategory(SALARY_INCOME);
+                    txn.setSubcategory(null);
+                    txn.setCategoryConfidence(CONFIDENCE_MEDIUM);
+                    txn.setCategorySource(SOURCE_FALLBACK_RULE);
+                    categorized++;
+                } else {
+                    txn.setCategoryConfidence(null);
+                    txn.setCategorySource(SOURCE_NONE);
+                }
+                continue;
+            }
+
+            // Only debit/expense transactions are categorized against the merchant/fallback rules;
+            // credits other than salary keep category=null so they can never be summed as spend.
             if (!DEBIT.equalsIgnoreCase(txn.getType())) {
                 continue;
             }
 
-            String haystack = narration == null ? "" : narration.toLowerCase(Locale.ROOT);
-            Optional<Categorization> match = matchKnown(known, haystack).or(() -> matchFallback(haystack));
-            if (match.isPresent()) {
-                txn.setCategory(match.get().category());
-                txn.setSubcategory(match.get().subcategory());
+            Optional<Categorization> knownMatch = matchKnown(known, haystack);
+            if (knownMatch.isPresent()) {
+                txn.setCategory(knownMatch.get().category());
+                txn.setSubcategory(knownMatch.get().subcategory());
+                txn.setCategoryConfidence(CONFIDENCE_HIGH);
+                txn.setCategorySource(SOURCE_MERCHANT_DB);
                 categorized++;
+                continue;
+            }
+
+            Optional<CategoryFallbackRules.Rule> fallbackMatch = matchFallback(haystack);
+            if (fallbackMatch.isPresent()) {
+                CategoryFallbackRules.Rule rule = fallbackMatch.get();
+                if (rule.specific()) {
+                    txn.setCategory(rule.category());
+                    txn.setSubcategory(rule.subcategory());
+                    txn.setCategoryConfidence(CONFIDENCE_MEDIUM);
+                    txn.setCategorySource(SOURCE_FALLBACK_RULE);
+                    categorized++;
+                } else {
+                    // Ambiguous generic-word match: don't guess, but still record that we looked.
+                    txn.setCategoryConfidence(CONFIDENCE_LOW);
+                    txn.setCategorySource(SOURCE_NONE);
+                }
+            } else {
+                txn.setCategoryConfidence(null);
+                txn.setCategorySource(SOURCE_NONE);
             }
         }
         log.info("Categorized {}/{} transaction(s)", categorized, transactions.size());
         return categorized;
+    }
+
+    private boolean matchesSalary(String haystack) {
+        return SALARY_KEYWORDS.stream().anyMatch(haystack::contains);
     }
 
     private record Categorization(String category, String subcategory) {
@@ -84,17 +149,16 @@ public class TransactionCategorizationService {
                 .map(mc -> new Categorization(mc.getCategory(), mc.getSubcategory()));
     }
 
-    private Optional<Categorization> matchFallback(String haystack) {
+    private Optional<CategoryFallbackRules.Rule> matchFallback(String haystack) {
         return fallbackRules.rules().stream()
                 .filter(rule -> haystack.contains(rule.keyword()))
-                .max(Comparator.comparingInt(rule -> rule.keyword().length()))
-                .map(rule -> new Categorization(rule.category(), rule.subcategory()));
+                .max(Comparator.comparingInt(rule -> rule.keyword().length()));
     }
 
     /**
-     * Best-effort merchant extraction. UPI narrations follow
-     * {@code UPI/<ref>/<payee>/<vpa>/<bank>/...}; for anything else, take the first token that
-     * looks like a word rather than a reference number.
+     * Best-effort merchant extraction, used only when {@link MerchantNormalizationService} doesn't
+     * recognize the narration. UPI narrations follow {@code UPI/<ref>/<payee>/<vpa>/<bank>/...}; for
+     * anything else, take the first token that looks like a word rather than a reference number.
      */
     private String extractMerchant(String narration) {
         if (narration == null || narration.isBlank()) {
