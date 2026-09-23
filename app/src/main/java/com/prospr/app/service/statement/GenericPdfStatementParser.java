@@ -57,8 +57,15 @@ public class GenericPdfStatementParser implements StatementParser {
         List<ParsedTransactionRow> rows = new ArrayList<>();
         try (PDDocument document = Loader.loadPDF(fileBytes)) {
             String text = new PDFTextStripper().getText(document);
+            BigDecimal previousBalance = null;
             for (String record : reassembleRecords(text)) {
-                parseLine(record).ifPresent(rows::add);
+                Optional<ParsedTransactionRow> row = parseLine(record, previousBalance);
+                if (row.isPresent()) {
+                    rows.add(row.get());
+                    if (row.get().balance() != null) {
+                        previousBalance = row.get().balance();
+                    }
+                }
             }
         } catch (IOException ex) {
             throw new ImportValidationException("Unable to read this PDF file", ex);
@@ -96,7 +103,7 @@ public class GenericPdfStatementParser implements StatementParser {
         return records;
     }
 
-    private Optional<ParsedTransactionRow> parseLine(String line) {
+    private Optional<ParsedTransactionRow> parseLine(String line, BigDecimal previousBalance) {
         Matcher matcher = LINE_PATTERN.matcher(line.trim());
         if (!matcher.matches()) {
             return Optional.empty();
@@ -113,7 +120,7 @@ public class GenericPdfStatementParser implements StatementParser {
         }
         String marker = matcher.group(4);
 
-        return Optional.of(buildRow(date, narrationAndReference, numbers, marker));
+        return Optional.of(buildRow(date, narrationAndReference, numbers, marker, previousBalance));
     }
 
     /**
@@ -151,12 +158,17 @@ public class GenericPdfStatementParser implements StatementParser {
     /**
      * 3 trailing numbers -> treated as a (debit, credit, balance) columnar layout, matching how
      * many Indian bank statements print separate Debit/Credit/Balance columns (one of the first two
-     * is 0.00 for any given line). 2 numbers -> (amount, balance). 1 number -> amount only, with
-     * type taken from an explicit Cr/Dr marker when present, else defaulted to DEBIT (the more
-     * common line item on a statement) - a known limitation of text-only extraction with no marker.
+     * is 0.00 for any given line) - direction is read directly from which column is non-zero, no
+     * inference needed. 2 numbers -> (amount, balance): an explicit Cr/Dr marker wins when present,
+     * otherwise direction is inferred from whether this line's balance increased or decreased versus
+     * the previous line's balance (a real, reliable signal for this statement shape - a running
+     * balance is not optional information, unlike a marker some banks simply never print). Only the
+     * very first record in a file (no prior balance to compare against) falls back to
+     * marker-or-default-DEBIT, an honestly-documented residual gap affecting at most one row per
+     * import. 1 number only (no balance at all) has no signal beyond the marker either way.
      */
-    private ParsedTransactionRow buildRow(
-            LocalDate date, NarrationAndReference narrationAndReference, List<BigDecimal> numbers, String marker) {
+    private ParsedTransactionRow buildRow(LocalDate date, NarrationAndReference narrationAndReference,
+                                           List<BigDecimal> numbers, String marker, BigDecimal previousBalance) {
         String narration = narrationAndReference.narration();
         BigDecimal debit = null;
         BigDecimal credit = null;
@@ -173,10 +185,10 @@ public class GenericPdfStatementParser implements StatementParser {
         } else if (numbers.size() == 2) {
             amount = numbers.get(0);
             balance = numbers.get(1);
-            type = inferType(marker);
+            type = inferType(marker, balance, previousBalance);
         } else {
             amount = numbers.get(0);
-            type = inferType(marker);
+            type = inferType(marker, null, previousBalance);
         }
 
         return new ParsedTransactionRow(
@@ -187,7 +199,16 @@ public class GenericPdfStatementParser implements StatementParser {
         return value.compareTo(BigDecimal.ZERO) == 0 ? null : value;
     }
 
-    private String inferType(String marker) {
-        return "CR".equalsIgnoreCase(marker) ? "CREDIT" : "DEBIT";
+    private String inferType(String marker, BigDecimal balance, BigDecimal previousBalance) {
+        if ("CR".equalsIgnoreCase(marker)) {
+            return "CREDIT";
+        }
+        if ("DR".equalsIgnoreCase(marker)) {
+            return "DEBIT";
+        }
+        if (balance != null && previousBalance != null) {
+            return balance.compareTo(previousBalance) > 0 ? "CREDIT" : "DEBIT";
+        }
+        return "DEBIT";
     }
 }

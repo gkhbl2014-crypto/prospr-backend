@@ -33,7 +33,7 @@ public class LifestyleCategoryCatalog {
     private static final Set<String> EXCLUDED_CATEGORIES = Set.of(
             "RENT", "EMI", "LOAN_PAYMENT", "INSURANCE", "MEDICAL", "TAX", "TRANSFER",
             "INVESTMENT", "SAVINGS", "CASH_WITHDRAWAL", "CREDIT_CARD_PAYMENT",
-            "EDUCATION", "TRANSPORTATION", "FUEL", "SALARY_INCOME");
+            "EDUCATION", "TRANSPORTATION", "FUEL", "SALARY_INCOME", "REFUND");
 
     public Set<String> lifestyleCategories() {
         return LIFESTYLE_CATEGORY_LABELS.keySet();

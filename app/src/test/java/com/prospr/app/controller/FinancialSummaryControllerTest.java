@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 
+import com.prospr.app.dto.response.MonthlyReconciliationResponse;
 import com.prospr.app.dto.response.MonthlySnapshotResponse;
 import com.prospr.app.entity.Member;
 import com.prospr.app.entity.MemberMonthlySnapshot;
@@ -29,6 +30,8 @@ import com.prospr.app.repository.MemberMonthlySummaryRepository;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.service.CategoryTaxonomy;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
+import com.prospr.app.service.LifestyleCategoryCatalog;
+import com.prospr.app.service.TransactionClassificationService;
 import com.prospr.app.service.cache.AnalyticsCacheService;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,10 +51,13 @@ class FinancialSummaryControllerTest {
     private Authentication authentication;
 
     private final CategoryTaxonomy categoryTaxonomy = new CategoryTaxonomy();
+    private final TransactionClassificationService transactionClassificationService =
+            new TransactionClassificationService(new LifestyleCategoryCatalog());
 
     private FinancialSummaryController controller() {
         return new FinancialSummaryController(snapshotRepository, summaryRepository, memberRepository,
-                financialAnalysisOrchestratorService, categoryTaxonomy, analyticsCacheService);
+                financialAnalysisOrchestratorService, categoryTaxonomy, analyticsCacheService,
+                transactionClassificationService);
     }
 
     private Member member() {
@@ -73,15 +79,18 @@ class FinancialSummaryControllerTest {
     }
 
     private MemberMonthlySnapshot snapshot(Member member, int year, int month, String income, String expenses, String rate) {
+        BigDecimal cashOutflow = new BigDecimal(expenses);
         return MemberMonthlySnapshot.builder().member(member).year(year).month(month)
-                .totalIncome(new BigDecimal(income)).totalEssential(BigDecimal.ZERO)
+                .totalIncome(new BigDecimal(income)).totalRefund(BigDecimal.ZERO)
+                .totalOtherCredit(BigDecimal.ZERO).totalEssential(BigDecimal.ZERO)
                 .totalDiscretionary(BigDecimal.ZERO).totalInvestment(BigDecimal.ZERO)
                 .totalDebtRepayment(BigDecimal.ZERO).totalInsurance(BigDecimal.ZERO)
                 .totalInternalTransfer(BigDecimal.ZERO).totalCashWithdrawal(BigDecimal.ZERO)
-                .totalUnknown(BigDecimal.ZERO).totalExpenses(new BigDecimal(expenses))
+                .totalOtherDebit(BigDecimal.ZERO).totalUnknown(BigDecimal.ZERO)
+                .totalExpenses(new BigDecimal(expenses)).totalCashOutflow(cashOutflow)
                 .savings(new BigDecimal(income).subtract(new BigDecimal(expenses)))
                 .savingsRate(rate == null ? null : new BigDecimal(rate))
-                .transactionCount(5).hasData(true).build();
+                .transactionCount(5).hasData(true).reconciled(true).difference(BigDecimal.ZERO).build();
     }
 
     @Test
@@ -156,5 +165,38 @@ class FinancialSummaryControllerTest {
 
         assertThat(result).hasSize(1);
         verify(analyticsCacheService).putSpendingSummary(eq(member.getId()), any());
+    }
+
+    @Test
+    void reconciliationEndpointReturnsReconciledTrueForANormalMonth() {
+        Member member = member();
+        stubCaller(member);
+        MemberMonthlySnapshot snap = snapshot(member, 2026, 6, "30000", "7000", "-123.33");
+        snap.setTotalInvestment(new BigDecimal("60000"));
+        snap.setTotalInternalTransfer(new BigDecimal("23000"));
+        snap.setTotalCashOutflow(new BigDecimal("67000"));
+        when(snapshotRepository.findByMemberIdAndYearAndMonth(member.getId(), 2026, 6))
+                .thenReturn(Optional.of(snap));
+
+        MonthlyReconciliationResponse result = controller().reconciliation("2026-06", authentication).getBody();
+
+        assertThat(result.isReconciled()).isTrue();
+        assertThat(result.getDifference()).isEqualByComparingTo("0");
+        assertThat(result.getIncome()).isEqualByComparingTo("30000");
+        assertThat(result.getInvestments()).isEqualByComparingTo("60000");
+        assertThat(result.getTotalCashOutflow()).isEqualByComparingTo("67000");
+        assertThat(result.getTotalCredits()).isEqualByComparingTo("53000");
+        assertThat(result.getTotalDebits()).isEqualByComparingTo("90000");
+    }
+
+    @Test
+    void reconciliationEndpointThrowsWhenNoSnapshotExistsForTheRequestedMonth() {
+        Member member = member();
+        stubCaller(member);
+        when(snapshotRepository.findByMemberIdAndYearAndMonth(member.getId(), 2026, 6)).thenReturn(Optional.empty());
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.prospr.app.exception.ResourceNotFoundException.class,
+                () -> controller().reconciliation("2026-06", authentication));
     }
 }

@@ -21,22 +21,34 @@ class TransactionClassificationServiceTest {
 
     @Test
     void mapsEachCategoryToItsExpectedTransactionType() {
-        assertThat(classify("RENT")).isEqualTo(TransactionClassificationService.ESSENTIAL);
-        assertThat(classify("GROCERIES")).isEqualTo(TransactionClassificationService.ESSENTIAL);
-        assertThat(classify("EMI")).isEqualTo(TransactionClassificationService.DEBT_REPAYMENT);
-        assertThat(classify("LOAN_PAYMENT")).isEqualTo(TransactionClassificationService.DEBT_REPAYMENT);
-        assertThat(classify("INSURANCE")).isEqualTo(TransactionClassificationService.INSURANCE);
-        assertThat(classify("INVESTMENT")).isEqualTo(TransactionClassificationService.INVESTMENT);
-        assertThat(classify("CASH_WITHDRAWAL")).isEqualTo(TransactionClassificationService.CASH_WITHDRAWAL);
-        assertThat(classify("CREDIT_CARD_PAYMENT")).isEqualTo(TransactionClassificationService.INTERNAL_TRANSFER);
-        assertThat(classify("SALARY_INCOME")).isEqualTo(TransactionClassificationService.INCOME);
-        assertThat(classify("DINING")).isEqualTo(TransactionClassificationService.DISCRETIONARY);
-        assertThat(classify("SHOPPING")).isEqualTo(TransactionClassificationService.DISCRETIONARY);
-        assertThat(classify(null)).isEqualTo(TransactionClassificationService.UNKNOWN);
+        assertThat(classify("RENT", "DEBIT")).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(classify("GROCERIES", "DEBIT")).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(classify("DINING", "DEBIT")).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(classify("SHOPPING", "DEBIT")).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(classify("EMI", "DEBIT")).isEqualTo(TransactionClassificationService.DEBT_REPAYMENT);
+        assertThat(classify("LOAN_PAYMENT", "DEBIT")).isEqualTo(TransactionClassificationService.DEBT_REPAYMENT);
+        assertThat(classify("INSURANCE", "DEBIT")).isEqualTo(TransactionClassificationService.INSURANCE);
+        assertThat(classify("INVESTMENT", "DEBIT")).isEqualTo(TransactionClassificationService.INVESTMENT);
+        assertThat(classify("CASH_WITHDRAWAL", "DEBIT")).isEqualTo(TransactionClassificationService.CASH_WITHDRAWAL);
+        assertThat(classify("CREDIT_CARD_PAYMENT", "DEBIT")).isEqualTo(TransactionClassificationService.INTERNAL_TRANSFER);
+        assertThat(classify("SALARY_INCOME", "CREDIT")).isEqualTo(TransactionClassificationService.INCOME);
+        assertThat(classify("REFUND", "CREDIT")).isEqualTo(TransactionClassificationService.REFUND);
     }
 
-    private String classify(String category) {
-        Transaction txn = txn("DEBIT", category, new BigDecimal("100"), LocalDate.of(2026, 1, 1), null, null);
+    @Test
+    void fallsBackToDirectionRatherThanASilentCatchAllWhenCategoryIsUnrecognized() {
+        assertThat(classify(null, "DEBIT")).isEqualTo(TransactionClassificationService.OTHER_DEBIT);
+        assertThat(classify(null, "CREDIT")).isEqualTo(TransactionClassificationService.OTHER_CREDIT);
+        assertThat(classify("SOME_UNMAPPED_CATEGORY", "DEBIT")).isEqualTo(TransactionClassificationService.OTHER_DEBIT);
+    }
+
+    @Test
+    void unknownIsReservedForATransactionMissingEvenADebitCreditType() {
+        assertThat(classify(null, null)).isEqualTo(TransactionClassificationService.UNKNOWN);
+    }
+
+    private String classify(String category, String type) {
+        Transaction txn = txn(type, category, new BigDecimal("100"), LocalDate.of(2026, 1, 1), null, null);
         service.classify(List.of(txn));
         return txn.getTransactionType();
     }
@@ -48,7 +60,7 @@ class TransactionClassificationServiceTest {
 
         service.classify(List.of(txn));
 
-        assertThat(txn.getTransactionType()).isEqualTo(TransactionClassificationService.ESSENTIAL);
+        assertThat(txn.getTransactionType()).isEqualTo(TransactionClassificationService.EXPENSE);
     }
 
     @Test
@@ -72,8 +84,8 @@ class TransactionClassificationServiceTest {
 
         service.classify(List.of(debit, credit));
 
-        assertThat(debit.getTransactionType()).isEqualTo(TransactionClassificationService.DISCRETIONARY);
-        assertThat(credit.getTransactionType()).isEqualTo(TransactionClassificationService.UNKNOWN);
+        assertThat(debit.getTransactionType()).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(credit.getTransactionType()).isEqualTo(TransactionClassificationService.OTHER_CREDIT);
     }
 
     @Test
@@ -83,7 +95,7 @@ class TransactionClassificationServiceTest {
 
         service.classify(List.of(debit, credit));
 
-        assertThat(debit.getTransactionType()).isEqualTo(TransactionClassificationService.DISCRETIONARY);
-        assertThat(credit.getTransactionType()).isEqualTo(TransactionClassificationService.UNKNOWN);
+        assertThat(debit.getTransactionType()).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(credit.getTransactionType()).isEqualTo(TransactionClassificationService.OTHER_CREDIT);
     }
 }

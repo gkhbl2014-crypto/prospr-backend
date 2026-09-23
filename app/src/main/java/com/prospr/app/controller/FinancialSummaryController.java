@@ -1,6 +1,8 @@
 package com.prospr.app.controller;
 
+import java.math.BigDecimal;
 import java.time.Month;
+import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.prospr.app.dto.response.CategoryAmount;
+import com.prospr.app.dto.response.MonthlyReconciliationResponse;
 import com.prospr.app.dto.response.MonthlySnapshotResponse;
 import com.prospr.app.entity.Member;
 import com.prospr.app.entity.MemberMonthlySnapshot;
@@ -28,6 +31,7 @@ import com.prospr.app.repository.MemberMonthlySummaryRepository;
 import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.service.CategoryTaxonomy;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
+import com.prospr.app.service.TransactionClassificationService;
 import com.prospr.app.service.cache.AnalyticsCacheService;
 import com.prospr.app.service.cache.CacheKeys;
 
@@ -38,6 +42,9 @@ public class FinancialSummaryController {
 
     private static final int DEFAULT_MONTHS = 6;
     private static final int TOP_CATEGORY_LIMIT = 5;
+    private static final String OTHER_CATEGORY_LABEL = "Other";
+    private static final String SAVINGS_RATE_UNAVAILABLE_REASON =
+            "Income could not be reliably identified from the imported transactions.";
 
     private final MemberMonthlySnapshotRepository snapshotRepository;
     private final MemberMonthlySummaryRepository summaryRepository;
@@ -45,19 +52,22 @@ public class FinancialSummaryController {
     private final FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
     private final CategoryTaxonomy categoryTaxonomy;
     private final AnalyticsCacheService analyticsCacheService;
+    private final TransactionClassificationService transactionClassificationService;
 
     public FinancialSummaryController(MemberMonthlySnapshotRepository snapshotRepository,
                                        MemberMonthlySummaryRepository summaryRepository,
                                        MemberRepository memberRepository,
                                        FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService,
                                        CategoryTaxonomy categoryTaxonomy,
-                                       AnalyticsCacheService analyticsCacheService) {
+                                       AnalyticsCacheService analyticsCacheService,
+                                       TransactionClassificationService transactionClassificationService) {
         this.snapshotRepository = snapshotRepository;
         this.summaryRepository = summaryRepository;
         this.memberRepository = memberRepository;
         this.financialAnalysisOrchestratorService = financialAnalysisOrchestratorService;
         this.categoryTaxonomy = categoryTaxonomy;
         this.analyticsCacheService = analyticsCacheService;
+        this.transactionClassificationService = transactionClassificationService;
     }
 
     /**
@@ -120,23 +130,18 @@ public class FinancialSummaryController {
         String monthLabel = Month.of(snapshot.getMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
                 + " " + snapshot.getYear();
 
-        List<MemberMonthlySummary> categorySummaries =
-                summaryRepository.findByMemberIdAndYearAndMonth(memberId, snapshot.getYear(), snapshot.getMonth());
-        List<CategoryAmount> topCategories = categorySummaries.stream()
-                .sorted(Comparator.comparing(MemberMonthlySummary::getTotalAmount).reversed())
-                .limit(TOP_CATEGORY_LIMIT)
-                .map(s -> CategoryAmount.builder()
-                        .category(s.getCategory())
-                        .topLevelCategory(categoryTaxonomy.topLevelName(s.getCategory()))
-                        .amount(s.getTotalAmount())
-                        .build())
-                .toList();
+        List<CategoryAmount> topCategories = buildTopCategories(memberId, snapshot);
+        boolean incomeUnavailable = snapshot.getSavingsRate() == null
+                && Boolean.TRUE.equals(snapshot.getHasData())
+                && snapshot.getTotalIncome().compareTo(BigDecimal.ZERO) == 0;
 
         return MonthlySnapshotResponse.builder()
                 .year(snapshot.getYear())
                 .month(snapshot.getMonth())
                 .monthLabel(monthLabel)
                 .totalIncome(snapshot.getTotalIncome())
+                .totalRefund(snapshot.getTotalRefund())
+                .totalOtherCredit(snapshot.getTotalOtherCredit())
                 .totalEssential(snapshot.getTotalEssential())
                 .totalDiscretionary(snapshot.getTotalDiscretionary())
                 .totalInvestment(snapshot.getTotalInvestment())
@@ -144,10 +149,14 @@ public class FinancialSummaryController {
                 .totalInsurance(snapshot.getTotalInsurance())
                 .totalInternalTransfer(snapshot.getTotalInternalTransfer())
                 .totalCashWithdrawal(snapshot.getTotalCashWithdrawal())
+                .totalOtherDebit(snapshot.getTotalOtherDebit())
                 .totalUnknown(snapshot.getTotalUnknown())
                 .totalExpenses(snapshot.getTotalExpenses())
+                .totalCashOutflow(snapshot.getTotalCashOutflow())
                 .savings(snapshot.getSavings())
                 .savingsRate(snapshot.getSavingsRate())
+                .savingsRateUnavailableReason(incomeUnavailable ? SAVINGS_RATE_UNAVAILABLE_REASON : null)
+                .reconciled(Boolean.TRUE.equals(snapshot.getReconciled()))
                 .transactionCount(snapshot.getTransactionCount())
                 .averageTransactionValue(snapshot.getAverageTransactionValue())
                 .topCategories(topCategories)
@@ -161,6 +170,87 @@ public class FinancialSummaryController {
                         : snapshot.getSavingsRate().subtract(previous.getSavingsRate()))
                 .calculatedAt(snapshot.getCalculatedAt())
                 .build();
+    }
+
+    /**
+     * Restricted to categories that {@link TransactionClassificationService} classifies as
+     * {@code EXPENSE} - the same set {@code MonthlySnapshotService} sums into {@code totalExpenses} -
+     * so the sum of every chip (top {@value #TOP_CATEGORY_LIMIT} plus a reconciling "Other" chip for
+     * the remainder) always equals {@code totalExpenses}. Investment/Insurance/Debt/Cash-withdrawal
+     * categories are deliberately excluded here; they're surfaced as their own dedicated snapshot
+     * fields instead, never as an expense-category chip.
+     */
+    private List<CategoryAmount> buildTopCategories(UUID memberId, MemberMonthlySnapshot snapshot) {
+        List<MemberMonthlySummary> categorySummaries = summaryRepository
+                .findByMemberIdAndYearAndMonth(memberId, snapshot.getYear(), snapshot.getMonth()).stream()
+                .filter(s -> transactionClassificationService.isExpenseCategory(s.getCategory()))
+                .sorted(Comparator.comparing(MemberMonthlySummary::getTotalAmount).reversed())
+                .toList();
+
+        List<CategoryAmount> shown = categorySummaries.stream()
+                .limit(TOP_CATEGORY_LIMIT)
+                .map(s -> CategoryAmount.builder()
+                        .category(s.getCategory())
+                        .topLevelCategory(categoryTaxonomy.topLevelName(s.getCategory()))
+                        .amount(s.getTotalAmount())
+                        .build())
+                .toList();
+
+        if (categorySummaries.size() <= TOP_CATEGORY_LIMIT) {
+            return shown;
+        }
+        BigDecimal shownTotal = shown.stream().map(CategoryAmount::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remainder = snapshot.getTotalExpenses().subtract(shownTotal);
+        List<CategoryAmount> withOther = new ArrayList<>(shown);
+        withOther.add(CategoryAmount.builder()
+                .category(OTHER_CATEGORY_LABEL)
+                .topLevelCategory(OTHER_CATEGORY_LABEL)
+                .amount(remainder)
+                .build());
+        return withOther;
+    }
+
+    /**
+     * Diagnostic reconciliation view for one month, built from the already-computed snapshot rather
+     * than re-scanning transactions - answers "does every rupee that moved this month land somewhere
+     * classified" without exposing individual transaction narrations.
+     */
+    @GetMapping("/reconciliation")
+    public ResponseEntity<MonthlyReconciliationResponse> reconciliation(
+            @RequestParam("month") String month, Authentication authentication) {
+        Member member = resolveMember(authentication);
+        YearMonth yearMonth = YearMonth.parse(month);
+        MemberMonthlySnapshot snapshot = snapshotRepository
+                .findByMemberIdAndYearAndMonth(member.getId(), yearMonth.getYear(), yearMonth.getMonthValue())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No financial snapshot found for " + month + " - run /recompute first"));
+
+        BigDecimal classifiedCredits = snapshot.getTotalIncome().add(snapshot.getTotalRefund())
+                .add(snapshot.getTotalOtherCredit());
+        BigDecimal classifiedDebits = snapshot.getTotalCashOutflow().add(snapshot.getTotalUnknown());
+        BigDecimal totalCredits = classifiedCredits.add(snapshot.getTotalInternalTransfer());
+        BigDecimal totalDebits = classifiedDebits.add(snapshot.getTotalInternalTransfer());
+
+        return ResponseEntity.ok(MonthlyReconciliationResponse.builder()
+                .month(month)
+                .transactionCount(snapshot.getTransactionCount())
+                .totalCredits(totalCredits)
+                .totalDebits(totalDebits)
+                .income(snapshot.getTotalIncome())
+                .expenses(snapshot.getTotalExpenses())
+                .investments(snapshot.getTotalInvestment())
+                .debtPayments(snapshot.getTotalDebtRepayment())
+                .insurance(snapshot.getTotalInsurance())
+                .cashWithdrawals(snapshot.getTotalCashWithdrawal())
+                .refunds(snapshot.getTotalRefund())
+                .transfers(snapshot.getTotalInternalTransfer())
+                .otherCredits(snapshot.getTotalOtherCredit())
+                .otherDebits(snapshot.getTotalOtherDebit())
+                .unclassified(snapshot.getTotalUnknown())
+                .totalCashOutflow(snapshot.getTotalCashOutflow())
+                .reconciled(Boolean.TRUE.equals(snapshot.getReconciled()))
+                .difference(snapshot.getDifference())
+                .build());
     }
 
     private Member resolveMember(Authentication authentication) {

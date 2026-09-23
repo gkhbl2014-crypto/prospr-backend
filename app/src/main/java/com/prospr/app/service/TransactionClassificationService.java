@@ -12,10 +12,24 @@ import org.springframework.stereotype.Service;
 import com.prospr.app.entity.Transaction;
 
 /**
- * Assigns each transaction a coarse {@code transactionType} (Income/Essential/Discretionary/
- * Investment/Debt repayment/Insurance/Internal transfer/Cash withdrawal/Unknown) derived from its
- * effective category, then layers a self-account-transfer heuristic on top for members with
- * multiple linked Setu accounts.
+ * Assigns each transaction a coarse {@code transactionType} (Income/Expense/Investment/Debt
+ * repayment/Insurance/Internal transfer/Cash withdrawal/Refund/Other credit/Other debit) derived
+ * from its effective category, then layers a self-account-transfer heuristic on top for members
+ * with multiple linked Setu accounts.
+ *
+ * <p><b>Classification vs. category</b> - deliberately kept separate. This class answers "what kind
+ * of money movement is this" (one of the values above); essential-vs-discretionary is a
+ * <em>category</em>-level question answered by {@link EssentialCategoryCatalog#isEssential} on the
+ * transaction's own category, not a classification value here. Both {@code RENT} (essential) and
+ * {@code DINING} (discretionary/lifestyle) classify as plain {@code EXPENSE} - {@link
+ * MonthlySnapshotService} is the one place that further splits {@code EXPENSE} into essential vs.
+ * discretionary totals, by checking the category, not by adding more classification values.
+ *
+ * <p><b>Never a silent catch-all</b>: a transaction whose category doesn't map to anything specific
+ * still gets classified by direction alone - {@code OTHER_CREDIT} or {@code OTHER_DEBIT} - never
+ * left generically {@code UNKNOWN}. {@code UNKNOWN} is reserved for the should-never-happen case of
+ * a transaction missing even a {@code DEBIT}/{@code CREDIT} type value, making it a real defect
+ * signal rather than an expected bucket money can quietly disappear into.
  *
  * <p>Self-transfer detection is intentionally narrow: it requires at least two distinct linked
  * account numbers for the member (only possible via Setu - a manual PDF/CSV import never carries a
@@ -28,13 +42,16 @@ import com.prospr.app.entity.Transaction;
 public class TransactionClassificationService {
 
     public static final String INCOME = "INCOME";
-    public static final String ESSENTIAL = "ESSENTIAL";
-    public static final String DISCRETIONARY = "DISCRETIONARY";
+    public static final String EXPENSE = "EXPENSE";
     public static final String INVESTMENT = "INVESTMENT";
     public static final String DEBT_REPAYMENT = "DEBT_REPAYMENT";
     public static final String INSURANCE = "INSURANCE";
     public static final String INTERNAL_TRANSFER = "INTERNAL_TRANSFER";
     public static final String CASH_WITHDRAWAL = "CASH_WITHDRAWAL";
+    public static final String REFUND = "REFUND";
+    public static final String OTHER_CREDIT = "OTHER_CREDIT";
+    public static final String OTHER_DEBIT = "OTHER_DEBIT";
+    /** Should never occur in practice - reserved for a transaction missing even a DEBIT/CREDIT type. */
     public static final String UNKNOWN = "UNKNOWN";
 
     private static final String DEBIT = "DEBIT";
@@ -56,16 +73,44 @@ public class TransactionClassificationService {
         detectSelfTransfers(transactions);
     }
 
-    private String resolveType(Transaction txn) {
-        String category = txn.getEffectiveCategory();
+    /**
+     * Whether a raw category (as stored on {@link Transaction#getCategory()}) classifies as
+     * {@link #EXPENSE} - used by {@code FinancialSummaryController} to filter category-breakdown
+     * chips down to the same category set {@link com.prospr.app.service.MonthlySnapshotService} sums
+     * into {@code totalExpenses}, so displayed chips always reconcile to the displayed total instead
+     * of also including non-expense categories like Investment or Insurance.
+     */
+    public boolean isExpenseCategory(String category) {
         if (category == null) {
-            return UNKNOWN;
+            return false;
         }
         String upper = category.toUpperCase(Locale.ROOT);
-        if (CATEGORY_TO_TYPE.containsKey(upper)) {
-            return CATEGORY_TO_TYPE.get(upper);
+        String mapped = CATEGORY_TO_TYPE.get(upper);
+        if (mapped != null) {
+            return EXPENSE.equals(mapped);
         }
-        return lifestyleCategoryCatalog.isLifestyleCategory(upper) ? DISCRETIONARY : UNKNOWN;
+        return lifestyleCategoryCatalog.isLifestyleCategory(upper);
+    }
+
+    private String resolveType(Transaction txn) {
+        String category = txn.getEffectiveCategory();
+        if (category != null) {
+            String upper = category.toUpperCase(Locale.ROOT);
+            if (CATEGORY_TO_TYPE.containsKey(upper)) {
+                return CATEGORY_TO_TYPE.get(upper);
+            }
+            if (lifestyleCategoryCatalog.isLifestyleCategory(upper)) {
+                return EXPENSE;
+            }
+        }
+        // No recognized category - classify by direction alone rather than a silent catch-all.
+        if (CREDIT.equalsIgnoreCase(txn.getType())) {
+            return OTHER_CREDIT;
+        }
+        if (DEBIT.equalsIgnoreCase(txn.getType())) {
+            return OTHER_DEBIT;
+        }
+        return UNKNOWN;
     }
 
     /**
@@ -117,14 +162,14 @@ public class TransactionClassificationService {
 
     private static Map<String, String> buildCategoryToTypeMap() {
         Map<String, String> map = new HashMap<>();
-        map.put("RENT", ESSENTIAL);
-        map.put("GROCERIES", ESSENTIAL);
-        map.put("UTILITIES", ESSENTIAL);
-        map.put("MEDICAL", ESSENTIAL);
-        map.put("EDUCATION", ESSENTIAL);
-        map.put("TRANSPORTATION", ESSENTIAL);
-        map.put("FUEL", ESSENTIAL);
-        map.put("TAX", ESSENTIAL);
+        map.put("RENT", EXPENSE);
+        map.put("GROCERIES", EXPENSE);
+        map.put("UTILITIES", EXPENSE);
+        map.put("MEDICAL", EXPENSE);
+        map.put("EDUCATION", EXPENSE);
+        map.put("TRANSPORTATION", EXPENSE);
+        map.put("FUEL", EXPENSE);
+        map.put("TAX", EXPENSE);
         map.put("EMI", DEBT_REPAYMENT);
         map.put("LOAN_PAYMENT", DEBT_REPAYMENT);
         map.put("INSURANCE", INSURANCE);
@@ -132,6 +177,7 @@ public class TransactionClassificationService {
         map.put("CASH_WITHDRAWAL", CASH_WITHDRAWAL);
         map.put("CREDIT_CARD_PAYMENT", INTERNAL_TRANSFER);
         map.put("SALARY_INCOME", INCOME);
+        map.put("REFUND", REFUND);
         return map;
     }
 }

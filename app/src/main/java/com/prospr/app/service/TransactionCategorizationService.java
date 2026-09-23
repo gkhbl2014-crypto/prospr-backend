@@ -38,7 +38,9 @@ public class TransactionCategorizationService {
     private static final String DEBIT = "DEBIT";
     private static final String CREDIT = "CREDIT";
     private static final String SALARY_INCOME = "SALARY_INCOME";
+    private static final String REFUND = "REFUND";
     private static final Set<String> SALARY_KEYWORDS = Set.of("salary", "sal credit", "salcredit", "payroll");
+    private static final Set<String> REFUND_KEYWORDS = Set.of("refund", "reversal", "chargeback", "cashback");
 
     public static final String CONFIDENCE_HIGH = "HIGH";
     public static final String CONFIDENCE_MEDIUM = "MEDIUM";
@@ -84,6 +86,14 @@ public class TransactionCategorizationService {
             if (CREDIT.equalsIgnoreCase(txn.getType())) {
                 if (matchesSalary(haystack)) {
                     txn.setCategory(SALARY_INCOME);
+                    txn.setSubcategory(null);
+                    txn.setCategoryConfidence(CONFIDENCE_MEDIUM);
+                    txn.setCategorySource(SOURCE_FALLBACK_RULE);
+                    categorized++;
+                } else if (matchesRefund(haystack)) {
+                    // A refund/reversal/chargeback/cashback credit must never be counted as income -
+                    // it's money coming back, not money earned.
+                    txn.setCategory(REFUND);
                     txn.setSubcategory(null);
                     txn.setCategoryConfidence(CONFIDENCE_MEDIUM);
                     txn.setCategorySource(SOURCE_FALLBACK_RULE);
@@ -136,6 +146,10 @@ public class TransactionCategorizationService {
 
     private boolean matchesSalary(String haystack) {
         return SALARY_KEYWORDS.stream().anyMatch(haystack::contains);
+    }
+
+    private boolean matchesRefund(String haystack) {
+        return REFUND_KEYWORDS.stream().anyMatch(haystack::contains);
     }
 
     private record Categorization(String category, String subcategory) {

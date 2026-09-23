@@ -64,6 +64,12 @@ public class MemberMonthlySnapshot {
     @Column(name = "total_income", precision = 15, scale = 2, nullable = false)
     private BigDecimal totalIncome;
 
+    @Column(name = "total_refund", precision = 15, scale = 2, nullable = false)
+    private BigDecimal totalRefund;
+
+    @Column(name = "total_other_credit", precision = 15, scale = 2, nullable = false)
+    private BigDecimal totalOtherCredit;
+
     @Column(name = "total_essential", precision = 15, scale = 2, nullable = false)
     private BigDecimal totalEssential;
 
@@ -85,11 +91,18 @@ public class MemberMonthlySnapshot {
     @Column(name = "total_cash_withdrawal", precision = 15, scale = 2, nullable = false)
     private BigDecimal totalCashWithdrawal;
 
+    @Column(name = "total_other_debit", precision = 15, scale = 2, nullable = false)
+    private BigDecimal totalOtherDebit;
+
     @Column(name = "total_unknown", precision = 15, scale = 2, nullable = false)
     private BigDecimal totalUnknown;
 
     @Column(name = "total_expenses", precision = 15, scale = 2, nullable = false)
     private BigDecimal totalExpenses;
+
+    /** Expenses + Investments + Debt repayment + Insurance + Cash withdrawal + Other debit - real money leaving the account, excluding transfers. */
+    @Column(name = "total_cash_outflow", precision = 15, scale = 2, nullable = false)
+    private BigDecimal totalCashOutflow;
 
     /** Null only when hasData=false - a month with genuinely zero transactions has no defined savings. */
     @Column(name = "savings", precision = 15, scale = 2)
@@ -108,6 +121,14 @@ public class MemberMonthlySnapshot {
     /** False = zero transactions existed for this member in this month at all. */
     @Column(name = "has_data", nullable = false)
     private Boolean hasData;
+
+    /** True when rawTotalCredits/rawTotalDebits (summed straight from txn.type) equal the classified bucket sums - should always be true; false is a real defect signal. */
+    @Column(name = "reconciled", nullable = false)
+    private Boolean reconciled;
+
+    /** (rawTotalCredits - classifiedCredits) + (rawTotalDebits - classifiedDebits). Zero when reconciled=true. */
+    @Column(name = "difference", precision = 15, scale = 2, nullable = false)
+    private BigDecimal difference;
 
     @Column(name = "calculated_at", nullable = false)
     private LocalDateTime calculatedAt;

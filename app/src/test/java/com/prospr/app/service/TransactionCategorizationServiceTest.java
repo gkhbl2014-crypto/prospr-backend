@@ -99,16 +99,35 @@ class TransactionCategorizationServiceTest {
     }
 
     @Test
-    void salaryCreditIsCategorizedAsIncomeButOtherCreditsAreNot() {
+    void salaryCreditIsCategorizedAsIncomeAndUnrecognizedCreditsAreNot() {
         when(merchantAliasRepository.findAll()).thenReturn(List.of());
         when(merchantCategoryRepository.findAll()).thenReturn(List.of());
 
         Transaction salary = credit("NEFT-N123-ACME CORP-SALARY-AUG2026");
-        Transaction refund = credit("UPI/REFUND/AMAZON/123456");
-        service().categorize(List.of(salary, refund));
+        Transaction interest = credit("UPI/INTEREST-CREDIT/HDFC/123456");
+        service().categorize(List.of(salary, interest));
 
         assertThat(salary.getCategory()).isEqualTo("SALARY_INCOME");
-        assertThat(refund.getCategory()).isNull();
+        assertThat(interest.getCategory()).isNull();
+    }
+
+    @Test
+    void refundReversalChargebackAndCashbackCreditsAreCategorizedAsRefundNotIncome() {
+        when(merchantAliasRepository.findAll()).thenReturn(List.of());
+        when(merchantCategoryRepository.findAll()).thenReturn(List.of());
+
+        Transaction refund = credit("UPI/REFUND/AMAZON/123456");
+        Transaction reversal = credit("POS-REVERSAL-TXN-99001");
+        Transaction chargeback = credit("CHARGEBACK-CREDIT-VISA-4412");
+        Transaction cashback = credit("CASHBACK-REWARD-Q3-2026");
+        service().categorize(List.of(refund, reversal, chargeback, cashback));
+
+        assertThat(refund.getCategory()).isEqualTo("REFUND");
+        assertThat(reversal.getCategory()).isEqualTo("REFUND");
+        assertThat(chargeback.getCategory()).isEqualTo("REFUND");
+        assertThat(cashback.getCategory()).isEqualTo("REFUND");
+        assertThat(refund.getCategoryConfidence()).isEqualTo(TransactionCategorizationService.CONFIDENCE_MEDIUM);
+        assertThat(refund.getCategorySource()).isEqualTo(TransactionCategorizationService.SOURCE_FALLBACK_RULE);
     }
 
     @Test

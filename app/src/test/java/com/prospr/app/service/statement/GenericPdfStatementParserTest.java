@@ -94,6 +94,65 @@ class GenericPdfStatementParserTest {
     }
 
     @Test
+    void infersCreditWhenBalanceIncreasesWithNoExplicitMarker() throws IOException {
+        // Root-cause regression test: no CR/DR marker anywhere on either line (this is the real
+        // shape of the user's actual bank statement - see the earlier UPI-narration samples). The
+        // second line's balance is HIGHER than the first's, so it must be inferred CREDIT (e.g. a
+        // salary credit) purely from the running balance, not defaulted to DEBIT.
+        byte[] pdf = buildPdf(List.of(
+                "1 01 Jun 2026 UPI/Zomato/111111111111/Order UPI-100000000001 500.00 96,115.00",
+                "2 02 Jun 2026 NEFT-ACME CORP-SAL-JUN2026 NEFT-200000000002 30,000.00 1,26,115.00"));
+
+        List<ParsedTransactionRow> rows = parser.parse(pdf);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).type()).isEqualTo("DEBIT");
+        assertThat(rows.get(1).type()).isEqualTo("CREDIT");
+        assertThat(rows.get(1).amount()).isEqualByComparingTo("30000.00");
+    }
+
+    @Test
+    void infersDebitWhenBalanceDecreasesWithNoExplicitMarker() throws IOException {
+        byte[] pdf = buildPdf(List.of(
+                "1 05 Jun 2026 UPI/ZERODHA/300000000003/MFPurchase UPI-300000000003 60,000.00 66,115.00",
+                "2 06 Jun 2026 UPI/Swiggy/400000000004/Order UPI-400000000004 500.00 65,615.00"));
+
+        List<ParsedTransactionRow> rows = parser.parse(pdf);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).amount()).isEqualByComparingTo("60000.00");
+        assertThat(rows.get(1).type()).isEqualTo("DEBIT");
+    }
+
+    @Test
+    void explicitMarkerStillWinsOverBalanceDelta() throws IOException {
+        // Balance decreases (would infer DEBIT), but an explicit "CR" marker is present and must
+        // take precedence - some banks do print one on some lines even in an otherwise marker-less
+        // statement (e.g. a reversal credited after a larger prior debit already dropped the balance).
+        byte[] pdf = buildPdf(List.of(
+                "1 01 Jul 2026 UPI/Big/500000000005/Purchase UPI-500000000005 90,000.00 10,000.00",
+                "2 02 Jul 2026 REVERSAL-CREDIT 5,000.00 CR"));
+
+        List<ParsedTransactionRow> rows = parser.parse(pdf);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(1).type()).isEqualTo("CREDIT");
+    }
+
+    @Test
+    void firstRecordInFileWithNoPriorBalanceFallsBackToDebitDefault() throws IOException {
+        // Documented residual limitation: the very first row has no previous balance to compare
+        // against, so even if it's genuinely a credit, it cannot be inferred and defaults to DEBIT
+        // exactly like before this fix - this is the one row per import this fix cannot cover.
+        byte[] pdf = buildPdf(List.of("1 01 Aug 2026 NEFT-ACME CORP-SAL-AUG2026 NEFT-600000000006 30,000.00 1,30,000.00"));
+
+        List<ParsedTransactionRow> rows = parser.parse(pdf);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).type()).isEqualTo("DEBIT");
+    }
+
+    @Test
     void skipsHeaderAndFooterNoiseLines() throws IOException {
         byte[] pdf = buildPdf(List.of("Account Statement", "Page 1 of 3", "IFSC HDFC0001234"));
 

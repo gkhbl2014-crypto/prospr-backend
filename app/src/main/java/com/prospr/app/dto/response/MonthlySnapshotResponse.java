@@ -22,6 +22,8 @@ public class MonthlySnapshotResponse {
     private String monthLabel;
 
     private BigDecimal totalIncome;
+    private BigDecimal totalRefund;
+    private BigDecimal totalOtherCredit;
     private BigDecimal totalEssential;
     private BigDecimal totalDiscretionary;
     private BigDecimal totalInvestment;
@@ -29,13 +31,20 @@ public class MonthlySnapshotResponse {
     private BigDecimal totalInsurance;
     private BigDecimal totalInternalTransfer;
     private BigDecimal totalCashWithdrawal;
+    private BigDecimal totalOtherDebit;
     private BigDecimal totalUnknown;
     private BigDecimal totalExpenses;
+    /** Expenses + Investments + Debt repayment + Insurance + Cash withdrawal + Other debit. */
+    private BigDecimal totalCashOutflow;
 
     /** Null only when hasData=false. */
     private BigDecimal savings;
     /** Null when totalIncome=0 - never shown as a literal 0%. */
     private BigDecimal savingsRate;
+    /** Set only when savingsRate is null and hasData=true - explains why, instead of a bare "-". */
+    private String savingsRateUnavailableReason;
+
+    private boolean reconciled;
 
     private Integer transactionCount;
     private BigDecimal averageTransactionValue;
