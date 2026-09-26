@@ -49,6 +49,9 @@ public class TransactionCategorizationService {
     public static final String SOURCE_MERCHANT_DB = "MERCHANT_DB";
     public static final String SOURCE_FALLBACK_RULE = "FALLBACK_RULE";
     public static final String SOURCE_NONE = "NONE";
+    /** Set by TransactionController's tag endpoint - a deliberate user correction, never overwritten
+     *  by this service (see {@link #categorize}'s already-categorized skip check). */
+    public static final String SOURCE_USER_OVERRIDE = "USER_OVERRIDE";
 
     private final MerchantCategoryRepository merchantCategoryRepository;
     private final CategoryFallbackRules fallbackRules;

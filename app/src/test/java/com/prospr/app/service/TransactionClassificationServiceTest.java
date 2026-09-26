@@ -33,6 +33,15 @@ class TransactionClassificationServiceTest {
         assertThat(classify("CREDIT_CARD_PAYMENT", "DEBIT")).isEqualTo(TransactionClassificationService.INTERNAL_TRANSFER);
         assertThat(classify("SALARY_INCOME", "CREDIT")).isEqualTo(TransactionClassificationService.INCOME);
         assertThat(classify("REFUND", "CREDIT")).isEqualTo(TransactionClassificationService.REFUND);
+        assertThat(classify(EssentialCategoryCatalog.MARKED_ESSENTIAL, "DEBIT")).isEqualTo(TransactionClassificationService.EXPENSE);
+        assertThat(classify(LifestyleCategoryCatalog.MARKED_LIFESTYLE_CREEP, "DEBIT")).isEqualTo(TransactionClassificationService.EXPENSE);
+    }
+
+    @Test
+    void userTaggedCategoriesSplitIntoEssentialVsDiscretionaryViaEssentialCategoryCatalog() {
+        EssentialCategoryCatalog essentialCategoryCatalog = new EssentialCategoryCatalog();
+        assertThat(essentialCategoryCatalog.isEssential(EssentialCategoryCatalog.MARKED_ESSENTIAL)).isTrue();
+        assertThat(essentialCategoryCatalog.isEssential(LifestyleCategoryCatalog.MARKED_LIFESTYLE_CREEP)).isFalse();
     }
 
     @Test

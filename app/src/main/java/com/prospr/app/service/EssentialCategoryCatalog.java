@@ -17,9 +17,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class EssentialCategoryCatalog {
 
+    /** A user's own "this is essential" tag on a transaction (see TransactionController's tag
+     *  endpoint), independent of anything narration-based keywords found. */
+    public static final String MARKED_ESSENTIAL = "MARKED_ESSENTIAL";
+
     private static final Set<String> ESSENTIAL_CATEGORIES = Set.of(
             "RENT", "EMI", "LOAN_PAYMENT", "INSURANCE", "MEDICAL", "GROCERIES", "UTILITIES",
-            "EDUCATION", "TRANSPORTATION", "FUEL");
+            "EDUCATION", "TRANSPORTATION", "FUEL", MARKED_ESSENTIAL);
 
     public Set<String> essentialCategories() {
         return ESSENTIAL_CATEGORIES;

@@ -26,8 +26,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     /** Transactions not yet run through the categorization pipeline. */
     List<Transaction> findByMemberIdAndCategoryIsNull(UUID memberId);
 
-    /** All categorized debit transactions for a member, used to (re)build monthly summaries. */
-    List<Transaction> findByMemberIdAndCategoryIsNotNullAndTypeIgnoreCase(UUID memberId, String type);
+    /** All debit transactions for a member, used to (re)build monthly summaries - filtered to an
+     *  effective category in Java (a user override on an otherwise-null category still counts). */
+    List<Transaction> findByMemberIdAndTypeIgnoreCase(UUID memberId, String type);
 
     /** Used to confirm the member's fetched history actually reaches back far enough for a baseline. */
     boolean existsByMemberIdAndValueDateLessThanEqual(UUID memberId, LocalDate date);

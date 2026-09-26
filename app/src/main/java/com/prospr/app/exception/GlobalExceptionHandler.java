@@ -75,6 +75,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(TransactionTagException.class)
+    public ResponseEntity<ErrorResponse> handleTransactionTag(TransactionTagException ex) {
+        log.warn("Transaction tag update rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(SetuIntegrationException.class)
     public ResponseEntity<ErrorResponse> handleSetuIntegration(SetuIntegrationException ex) {
         log.error("Setu integration failed: {}", ex.getMessage());

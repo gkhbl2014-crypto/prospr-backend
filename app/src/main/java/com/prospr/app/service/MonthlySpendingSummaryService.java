@@ -22,6 +22,11 @@ import com.prospr.app.repository.TransactionRepository;
  * are ever summed here - credits (salary, refunds, dividends) never had a category assigned by
  * {@link TransactionCategorizationService} in the first place, so this query already excludes them
  * by construction rather than by amount sign.
+ *
+ * <p>Groups by {@link Transaction#getEffectiveCategory()}, not the raw {@code category} column, so a
+ * user's manual tag correction ({@code userCategoryOverride}) is reflected here exactly the same way
+ * it already is in {@link TransactionClassificationService}/{@link MonthlySnapshotService} - one
+ * correction, reflected consistently everywhere, never a stale category surviving in just one place.
  */
 @Service
 public class MonthlySpendingSummaryService {
@@ -43,13 +48,13 @@ public class MonthlySpendingSummaryService {
 
     public void recomputeForMember(Member member) {
         List<Transaction> transactions = transactionRepository
-                .findByMemberIdAndCategoryIsNotNullAndTypeIgnoreCase(member.getId(), DEBIT);
+                .findByMemberIdAndTypeIgnoreCase(member.getId(), DEBIT);
 
         Map<MonthCategoryKey, List<Transaction>> grouped = transactions.stream()
-                .filter(txn -> txn.getAmount() != null && resolveDate(txn) != null)
+                .filter(txn -> txn.getAmount() != null && resolveDate(txn) != null && txn.getEffectiveCategory() != null)
                 .collect(Collectors.groupingBy(txn -> {
                     LocalDate date = resolveDate(txn);
-                    return new MonthCategoryKey(date.getYear(), date.getMonthValue(), txn.getCategory());
+                    return new MonthCategoryKey(date.getYear(), date.getMonthValue(), txn.getEffectiveCategory());
                 }));
 
         for (Map.Entry<MonthCategoryKey, List<Transaction>> entry : grouped.entrySet()) {

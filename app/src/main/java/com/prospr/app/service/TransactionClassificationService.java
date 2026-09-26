@@ -170,6 +170,7 @@ public class TransactionClassificationService {
         map.put("TRANSPORTATION", EXPENSE);
         map.put("FUEL", EXPENSE);
         map.put("TAX", EXPENSE);
+        map.put(EssentialCategoryCatalog.MARKED_ESSENTIAL, EXPENSE);
         map.put("EMI", DEBT_REPAYMENT);
         map.put("LOAN_PAYMENT", DEBT_REPAYMENT);
         map.put("INSURANCE", INSURANCE);

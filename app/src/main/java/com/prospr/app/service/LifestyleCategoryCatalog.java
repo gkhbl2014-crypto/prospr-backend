@@ -14,6 +14,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class LifestyleCategoryCatalog {
 
+    /** A user's own "this is lifestyle creep" tag on a transaction (see TransactionController's tag
+     *  endpoint) - treated exactly like any other lifestyle category from here on. */
+    public static final String MARKED_LIFESTYLE_CREEP = "MARKED_LIFESTYLE_CREEP";
+
     private static final Map<String, String> LIFESTYLE_CATEGORY_LABELS = new LinkedHashMap<>();
 
     static {
@@ -27,6 +31,7 @@ public class LifestyleCategoryCatalog {
         LIFESTYLE_CATEGORY_LABELS.put("FITNESS", "Fitness");
         LIFESTYLE_CATEGORY_LABELS.put("HOBBIES", "Hobbies");
         LIFESTYLE_CATEGORY_LABELS.put("LUXURY", "Luxury");
+        LIFESTYLE_CATEGORY_LABELS.put(MARKED_LIFESTYLE_CREEP, "Lifestyle Creep (Tagged)");
     }
 
     /** Non-discretionary/essential categories: never treated as lifestyle creep even if categorized. */

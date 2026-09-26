@@ -35,6 +35,8 @@ public class CategoryTaxonomy {
     public static final String SALARY_INCOME = "Salary/Income";
     public static final String OTHER = "Other";
     public static final String UNCLASSIFIED = "Unclassified";
+    public static final String ESSENTIAL_TAGGED = "Essential (Tagged)";
+    public static final String LIFESTYLE_CREEP_TAGGED = "Lifestyle Creep (Tagged)";
 
     private static final Map<String, String> CODE_TO_TOP_LEVEL = Map.ofEntries(
             Map.entry("FOOD_DELIVERY", FOOD_AND_DINING),
@@ -63,7 +65,9 @@ public class CategoryTaxonomy {
             Map.entry("FITNESS", OTHER),
             Map.entry("HOBBIES", OTHER),
             Map.entry("LUXURY", OTHER),
-            Map.entry("SAVINGS", OTHER));
+            Map.entry("SAVINGS", OTHER),
+            Map.entry(EssentialCategoryCatalog.MARKED_ESSENTIAL, ESSENTIAL_TAGGED),
+            Map.entry(LifestyleCategoryCatalog.MARKED_LIFESTYLE_CREEP, LIFESTYLE_CREEP_TAGGED));
 
     /** Never returns null - an unrecognized or absent category maps to "Unclassified". */
     public String topLevelName(String category) {

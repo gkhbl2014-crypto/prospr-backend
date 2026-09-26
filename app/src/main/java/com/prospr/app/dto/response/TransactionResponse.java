@@ -40,7 +40,14 @@ public class TransactionResponse {
     private String topLevelCategory;
     /** HIGH | MEDIUM | LOW | null (never categorized yet). */
     private String categoryConfidence;
-    /** INCOME|ESSENTIAL|DISCRETIONARY|INVESTMENT|DEBT_REPAYMENT|INSURANCE|INTERNAL_TRANSFER|
-     *  CASH_WITHDRAWAL|UNKNOWN|null (never classified yet). */
+    /** INCOME|EXPENSE|INVESTMENT|DEBT_REPAYMENT|INSURANCE|INTERNAL_TRANSFER|CASH_WITHDRAWAL|REFUND|
+     *  OTHER_CREDIT|OTHER_DEBIT|UNKNOWN|null (never classified yet). */
     private String transactionType;
+    /** True when a member has manually corrected this transaction's tag via the tag endpoint -
+     *  distinguishes a deliberate user correction from the system's own best guess. */
+    private boolean manuallyTagged;
+    /** The caller's own personal note for this transaction's counterparty (e.g. "Oil"), if they've
+     *  set one - null otherwise. Applies to every transaction sharing the same counterparty, not
+     *  just the one it was originally set on. */
+    private String personalLabel;
 }
