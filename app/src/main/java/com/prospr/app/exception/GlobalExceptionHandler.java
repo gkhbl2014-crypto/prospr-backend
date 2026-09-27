@@ -81,6 +81,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(GoalValidationException.class)
+    public ResponseEntity<ErrorResponse> handleGoalValidation(GoalValidationException ex) {
+        log.warn("Goal write rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(SetuIntegrationException.class)
     public ResponseEntity<ErrorResponse> handleSetuIntegration(SetuIntegrationException ex) {
         log.error("Setu integration failed: {}", ex.getMessage());

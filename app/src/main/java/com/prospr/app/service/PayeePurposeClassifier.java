@@ -16,8 +16,9 @@ import com.prospr.app.repository.MemberTransactionLabelRepository;
  * Applies a member's own learned payee purposes ({@link PayeePurpose}) to transactions categorization
  * couldn't otherwise resolve - the "how do you usually use payments to Rahul" answer feeding back into
  * the pipeline. Deliberately conservative: only acts on the subset of purposes that map unambiguously
- * onto an existing synthetic category - the exact same {@code MARKED_ESSENTIAL}/{@code
- * MARKED_LIFESTYLE_CREEP}/{@code INVESTMENT} categories {@link
+ * onto an existing category - RENT reuses the real "RENT" category (already essential/EXPENSE via
+ * {@link EssentialCategoryCatalog}); HOUSEHOLD/SHARED_EXPENSE/GIFT/INVESTMENT reuse the exact same
+ * {@code MARKED_ESSENTIAL}/{@code MARKED_LIFESTYLE_CREEP}/{@code INVESTMENT} categories {@link
  * com.prospr.app.controller.TransactionController}'s manual {@code /tag} endpoint already uses, so a
  * payee-level purpose and an individual manual tag land in the identical downstream bucket.
  * PERSONAL_TRANSFER, REPAYMENT and OTHER are left as pure context - {@link
@@ -37,12 +38,14 @@ public class PayeePurposeClassifier {
     public static final String SOURCE_LEARNED_PURPOSE = "LEARNED_PURPOSE";
 
     private static final Map<String, String> PURPOSE_TO_CATEGORY = Map.of(
+            PayeePurpose.RENT, "RENT",
             PayeePurpose.HOUSEHOLD, EssentialCategoryCatalog.MARKED_ESSENTIAL,
             PayeePurpose.SHARED_EXPENSE, LifestyleCategoryCatalog.MARKED_LIFESTYLE_CREEP,
             PayeePurpose.GIFT, LifestyleCategoryCatalog.MARKED_LIFESTYLE_CREEP,
             PayeePurpose.INVESTMENT, "INVESTMENT");
 
     private static final Map<String, String> CATEGORY_TO_TRANSACTION_TYPE = Map.of(
+            "RENT", TransactionClassificationService.EXPENSE,
             EssentialCategoryCatalog.MARKED_ESSENTIAL, TransactionClassificationService.EXPENSE,
             LifestyleCategoryCatalog.MARKED_LIFESTYLE_CREEP, TransactionClassificationService.EXPENSE,
             "INVESTMENT", TransactionClassificationService.INVESTMENT);

@@ -42,8 +42,12 @@ class ReviewQueueServiceTest {
     }
 
     private Transaction p2pTxn(LocalDate date, String amount, String narration) {
+        return p2pTxn(date, amount, narration, "DEBIT");
+    }
+
+    private Transaction p2pTxn(LocalDate date, String amount, String narration, String type) {
         return Transaction.builder().narration(narration).amount(new BigDecimal(amount)).valueDate(date)
-                .type("DEBIT").category(null).counterpartyType(CounterpartyTypeClassifier.P2P).build();
+                .type(type).category(null).counterpartyType(CounterpartyTypeClassifier.P2P).build();
     }
 
     @Test
@@ -61,6 +65,23 @@ class ReviewQueueServiceTest {
         assertThat(queue.get(0).transactionCount()).isEqualTo(3);
         assertThat(queue.get(0).totalAmount()).isEqualByComparingTo("2400");
         assertThat(queue.get(0).displayName()).isEqualTo("rahulkumar@okaxis");
+        assertThat(queue.get(0).direction()).isEqualTo(ReviewQueueService.DIRECTION_DEBIT);
+    }
+
+    @Test
+    void creditsAndDebitsToTheSameCounterpartyAreSeparateCards() {
+        Member member = member();
+        when(labelRepository.findByMemberId(member.getId())).thenReturn(List.of());
+        when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(member.getId())).thenReturn(List.of(
+                p2pTxn(LocalDate.of(2026, 4, 1), "5000", "UPI/RAHULKUMAR@okaxis", "DEBIT"),
+                p2pTxn(LocalDate.of(2026, 5, 1), "106000", "UPI/RAHULKUMAR@okaxis", "CREDIT")));
+
+        List<ReviewQueueService.ReviewQueueEntry> queue = service().buildQueue(member);
+
+        assertThat(queue).hasSize(2);
+        assertThat(queue).extracting(ReviewQueueService.ReviewQueueEntry::direction)
+                .containsExactlyInAnyOrder(ReviewQueueService.DIRECTION_CREDIT, ReviewQueueService.DIRECTION_DEBIT);
+        assertThat(queue).allMatch(entry -> entry.counterpartyKey().equals("VPA:rahulkumar@okaxis"));
     }
 
     @Test

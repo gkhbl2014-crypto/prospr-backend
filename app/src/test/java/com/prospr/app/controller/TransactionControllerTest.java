@@ -112,9 +112,14 @@ class TransactionControllerTest {
     }
 
     private UpdatePayeePurposeRequest purposeRequest(String counterpartyKey, String purpose) {
+        return purposeRequest(counterpartyKey, purpose, null);
+    }
+
+    private UpdatePayeePurposeRequest purposeRequest(String counterpartyKey, String purpose, String label) {
         UpdatePayeePurposeRequest request = new UpdatePayeePurposeRequest();
         request.setCounterpartyKey(counterpartyKey);
         request.setPurpose(purpose);
+        request.setLabel(label);
         return request;
     }
 
@@ -419,6 +424,47 @@ class TransactionControllerTest {
     }
 
     @Test
+    void settingPurposeAsOtherWithACustomNoteStoresBothOnTheSameRow() {
+        Member caller = member("caller@example.com", null);
+        Transaction owned = txn(caller, false);
+        owned.setNarration("UPI/RAHULKUMAR@okaxis");
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
+                .thenReturn(List.of(owned));
+        when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:rahulkumar@okaxis"))
+                .thenReturn(Optional.empty());
+
+        PayeePurposeResponse result = controller()
+                .updatePayeePurpose(purposeRequest("VPA:rahulkumar@okaxis", "OTHER", "Plumber deposit"), authentication)
+                .getBody();
+
+        assertThat(result.getPurpose()).isEqualTo("OTHER");
+        assertThat(result.getLabel()).isEqualTo("Plumber deposit");
+        org.mockito.Mockito.verify(labelRepository).save(org.mockito.ArgumentMatchers.argThat(saved ->
+                "OTHER".equals(saved.getPurpose()) && "Plumber deposit".equals(saved.getLabel())));
+    }
+
+    @Test
+    void settingRentPurposeIsAccepted() {
+        Member caller = member("caller@example.com", null);
+        Transaction owned = txn(caller, false);
+        owned.setNarration("UPI/LANDLORDKUMAR@okaxis");
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
+                .thenReturn(List.of(owned));
+        when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:landlordkumar@okaxis"))
+                .thenReturn(Optional.empty());
+
+        PayeePurposeResponse result = controller()
+                .updatePayeePurpose(purposeRequest("VPA:landlordkumar@okaxis", "RENT"), authentication)
+                .getBody();
+
+        assertThat(result.getPurpose()).isEqualTo("RENT");
+    }
+
+    @Test
     void unrecognizedPurposeIsRejected() {
         Member caller = member("caller@example.com", null);
         when(authentication.getName()).thenReturn(caller.getEmail());
@@ -445,7 +491,7 @@ class TransactionControllerTest {
         when(authentication.getName()).thenReturn(caller.getEmail());
         when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
         when(reviewQueueService.buildQueue(caller)).thenReturn(List.of(new ReviewQueueService.ReviewQueueEntry(
-                "VPA:rahulkumar@okaxis", "rahulkumar@okaxis", 3, new BigDecimal("2400"),
+                "VPA:rahulkumar@okaxis", "rahulkumar@okaxis", ReviewQueueService.DIRECTION_DEBIT, 3, new BigDecimal("2400"),
                 java.time.LocalDate.of(2026, 4, 1), java.time.LocalDate.of(2026, 6, 1),
                 new com.prospr.app.service.PayeePatternService.Evidence(3, new BigDecimal("800"), false, "IRREGULAR"))));
 
@@ -453,6 +499,7 @@ class TransactionControllerTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getDisplayName()).isEqualTo("rahulkumar@okaxis");
+        assertThat(result.get(0).getDirection()).isEqualTo(ReviewQueueService.DIRECTION_DEBIT);
         assertThat(result.get(0).getTransactionCount()).isEqualTo(3);
         assertThat(result.get(0).getTotalAmount()).isEqualByComparingTo("2400");
         assertThat(result.get(0).getPatternCadenceGuess()).isEqualTo("IRREGULAR");

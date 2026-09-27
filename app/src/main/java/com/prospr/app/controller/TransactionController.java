@@ -259,6 +259,10 @@ public class TransactionController {
                 .orElseGet(() -> MemberTransactionLabel.builder().member(member).counterpartyKey(counterpartyKey).build());
         entity.setPurpose(purpose);
         entity.setEvidenceCount(affectedCount);
+        String label = request.getLabel() == null ? null : request.getLabel().trim();
+        if (label != null && !label.isEmpty()) {
+            entity.setLabel(label);
+        }
         labelRepository.save(entity);
 
         financialAnalysisOrchestratorService.recomputeForMember(member);
@@ -267,6 +271,7 @@ public class TransactionController {
                 .counterpartyKey(counterpartyKey)
                 .displayName(counterpartyKeyResolver.toDisplayName(counterpartyKey))
                 .purpose(purpose)
+                .label(entity.getLabel())
                 .affectedTransactionCount(affectedCount)
                 .build());
     }
@@ -283,6 +288,7 @@ public class TransactionController {
                 .map(entry -> ReviewQueueEntryResponse.builder()
                         .counterpartyKey(entry.counterpartyKey())
                         .displayName(entry.displayName())
+                        .direction(entry.direction())
                         .transactionCount(entry.transactionCount())
                         .totalAmount(entry.totalAmount())
                         .earliestDate(entry.earliestDate())

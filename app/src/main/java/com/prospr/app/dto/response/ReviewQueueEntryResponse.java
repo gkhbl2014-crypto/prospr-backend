@@ -13,6 +13,8 @@ import lombok.Getter;
 public class ReviewQueueEntryResponse {
     private String counterpartyKey;
     private String displayName;
+    /** CREDIT | DEBIT - money in vs money out, never blended into one card/total. */
+    private String direction;
     private int transactionCount;
     private BigDecimal totalAmount;
     private LocalDate earliestDate;

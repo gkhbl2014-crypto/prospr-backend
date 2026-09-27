@@ -54,6 +54,20 @@ class PayeePurposeClassifierTest {
     }
 
     @Test
+    void rentPurposeAppliesTheRealRentCategoryNotASyntheticOne() {
+        Member member = member();
+        Transaction txn = txn(member, "UPI/RAHULKUMAR@okaxis");
+        when(labelRepository.findByMemberId(member.getId())).thenReturn(List.of(
+                MemberTransactionLabel.builder().counterpartyKey("VPA:rahulkumar@okaxis")
+                        .purpose(PayeePurpose.RENT).evidenceCount(3).build()));
+
+        classifier().applyLearnedPurposes(List.of(txn));
+
+        assertThat(txn.getCategory()).isEqualTo("RENT");
+        assertThat(txn.getTransactionType()).isEqualTo(TransactionClassificationService.EXPENSE);
+    }
+
+    @Test
     void householdPurposeAppliesTheEssentialSyntheticCategory() {
         Member member = member();
         Transaction txn = txn(member, "UPI/RAHULKUMAR@okaxis");
