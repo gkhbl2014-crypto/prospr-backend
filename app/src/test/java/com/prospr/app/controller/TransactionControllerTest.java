@@ -16,10 +16,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 
+import com.prospr.app.dto.request.UpdatePayeePurposeRequest;
 import com.prospr.app.dto.request.UpdateTransactionDirectionRequest;
 import com.prospr.app.dto.request.UpdateTransactionHiddenRequest;
 import com.prospr.app.dto.request.UpdateTransactionLabelRequest;
 import com.prospr.app.dto.request.UpdateTransactionTagRequest;
+import com.prospr.app.dto.response.PayeePurposeResponse;
+import com.prospr.app.dto.response.ReviewQueueEntryResponse;
 import com.prospr.app.dto.response.TransactionResponse;
 import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
@@ -35,6 +38,8 @@ import com.prospr.app.service.CounterpartyKeyResolver;
 import com.prospr.app.service.EssentialCategoryCatalog;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
 import com.prospr.app.service.LifestyleCategoryCatalog;
+import com.prospr.app.service.PayeePurpose;
+import com.prospr.app.service.ReviewQueueService;
 import com.prospr.app.service.TransactionCategorizationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +52,8 @@ class TransactionControllerTest {
     @Mock
     private MemberTransactionLabelRepository labelRepository;
     @Mock
+    private ReviewQueueService reviewQueueService;
+    @Mock
     private FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
     @Mock
     private Authentication authentication;
@@ -56,7 +63,7 @@ class TransactionControllerTest {
 
     private TransactionController controller() {
         return new TransactionController(transactionRepository, memberRepository, labelRepository,
-                categoryTaxonomy, counterpartyKeyResolver, financialAnalysisOrchestratorService);
+                categoryTaxonomy, counterpartyKeyResolver, reviewQueueService, financialAnalysisOrchestratorService);
     }
 
     private Member member(String email, Family family) {
@@ -101,6 +108,13 @@ class TransactionControllerTest {
     private UpdateTransactionLabelRequest labelRequest(String label) {
         UpdateTransactionLabelRequest request = new UpdateTransactionLabelRequest();
         request.setLabel(label);
+        return request;
+    }
+
+    private UpdatePayeePurposeRequest purposeRequest(String counterpartyKey, String purpose) {
+        UpdatePayeePurposeRequest request = new UpdatePayeePurposeRequest();
+        request.setCounterpartyKey(counterpartyKey);
+        request.setPurpose(purpose);
         return request;
     }
 
@@ -328,17 +342,42 @@ class TransactionControllerTest {
     }
 
     @Test
-    void blankLabelClearsTheExistingOverride() {
+    void blankLabelDeletesTheRowWhenNoPurposeIsSet() {
         Member caller = member("caller@example.com", null);
         Transaction owned = txn(caller, false);
         owned.setNarration("UPI/402312345678/Local Oil Store/oilstore@icici/ICICI/Payment");
+        MemberTransactionLabel existing = MemberTransactionLabel.builder()
+                .counterpartyKey("VPA:oilstore@icici").label("Oil").build();
         when(authentication.getName()).thenReturn(caller.getEmail());
         when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
+        when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:oilstore@icici"))
+                .thenReturn(Optional.of(existing));
 
         controller().updateLabel(owned.getId(), labelRequest("  "), authentication);
 
-        org.mockito.Mockito.verify(labelRepository).deleteByMemberIdAndCounterpartyKey(caller.getId(), "VPA:oilstore@icici");
+        org.mockito.Mockito.verify(labelRepository).delete(existing);
+    }
+
+    @Test
+    void blankLabelOnlyClearsTheNoteWhenAPurposeIsAlsoSet() {
+        // Clearing the free-text note must never destroy a structured purpose answer on the same row.
+        Member caller = member("caller@example.com", null);
+        Transaction owned = txn(caller, false);
+        owned.setNarration("UPI/402312345678/Local Oil Store/oilstore@icici/ICICI/Payment");
+        MemberTransactionLabel existing = MemberTransactionLabel.builder()
+                .counterpartyKey("VPA:oilstore@icici").label("Oil").purpose(PayeePurpose.HOUSEHOLD).build();
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
+        when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:oilstore@icici"))
+                .thenReturn(Optional.of(existing));
+
+        controller().updateLabel(owned.getId(), labelRequest("  "), authentication);
+
+        org.mockito.Mockito.verify(labelRepository, org.mockito.Mockito.never()).delete(org.mockito.ArgumentMatchers.any());
+        assertThat(existing.getLabel()).isNull();
+        assertThat(existing.getPurpose()).isEqualTo(PayeePurpose.HOUSEHOLD);
     }
 
     @Test
@@ -352,6 +391,71 @@ class TransactionControllerTest {
 
         assertThatThrownBy(() -> controller().updateLabel(othersTxn.getId(), labelRequest("Oil"), authentication))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void settingAPayeePurposeAppliesToEveryMatchingTransactionAndTriggersRecompute() {
+        Member caller = member("caller@example.com", null);
+        Transaction first = txn(caller, false);
+        first.setNarration("UPI/RAHULKUMAR@okaxis");
+        Transaction second = txn(caller, false);
+        second.setNarration("UPI/RAHULKUMAR@okaxis");
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
+                .thenReturn(List.of(first, second));
+        when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:rahulkumar@okaxis"))
+                .thenReturn(Optional.empty());
+
+        PayeePurposeResponse result = controller()
+                .updatePayeePurpose(purposeRequest("VPA:rahulkumar@okaxis", "SHARED_EXPENSE"), authentication)
+                .getBody();
+
+        assertThat(result.getAffectedTransactionCount()).isEqualTo(2);
+        assertThat(result.getPurpose()).isEqualTo("SHARED_EXPENSE");
+        org.mockito.Mockito.verify(labelRepository).save(org.mockito.ArgumentMatchers.argThat(saved ->
+                "SHARED_EXPENSE".equals(saved.getPurpose()) && saved.getEvidenceCount() == 2));
+        org.mockito.Mockito.verify(financialAnalysisOrchestratorService).recomputeForMember(caller);
+    }
+
+    @Test
+    void unrecognizedPurposeIsRejected() {
+        Member caller = member("caller@example.com", null);
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+
+        assertThatThrownBy(() -> controller().updatePayeePurpose(purposeRequest("VPA:x@y", "NOT_A_REAL_PURPOSE"), authentication))
+                .isInstanceOf(TransactionTagException.class);
+    }
+
+    @Test
+    void settingAPurposeForACounterpartyWithNoTransactionsIsRejected() {
+        Member caller = member("caller@example.com", null);
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId())).thenReturn(List.of());
+
+        assertThatThrownBy(() -> controller().updatePayeePurpose(purposeRequest("VPA:nobody@okaxis", "GIFT"), authentication))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void reviewQueueDelegatesToTheReviewQueueServiceForTheCallerOnly() {
+        Member caller = member("caller@example.com", null);
+        when(authentication.getName()).thenReturn(caller.getEmail());
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(reviewQueueService.buildQueue(caller)).thenReturn(List.of(new ReviewQueueService.ReviewQueueEntry(
+                "VPA:rahulkumar@okaxis", "rahulkumar@okaxis", 3, new BigDecimal("2400"),
+                java.time.LocalDate.of(2026, 4, 1), java.time.LocalDate.of(2026, 6, 1),
+                new com.prospr.app.service.PayeePatternService.Evidence(3, new BigDecimal("800"), false, "IRREGULAR"))));
+
+        List<ReviewQueueEntryResponse> result = controller().reviewQueue(authentication).getBody();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getDisplayName()).isEqualTo("rahulkumar@okaxis");
+        assertThat(result.get(0).getTransactionCount()).isEqualTo(3);
+        assertThat(result.get(0).getTotalAmount()).isEqualByComparingTo("2400");
+        assertThat(result.get(0).getPatternCadenceGuess()).isEqualTo("IRREGULAR");
     }
 
     @Test

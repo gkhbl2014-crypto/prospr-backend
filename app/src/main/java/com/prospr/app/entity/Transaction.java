@@ -107,10 +107,15 @@ public class Transaction {
     @Column(name = "category_source")
     private String categorySource;
 
-    /** INCOME|ESSENTIAL|DISCRETIONARY|INVESTMENT|DEBT_REPAYMENT|INSURANCE|INTERNAL_TRANSFER|
-     *  CASH_WITHDRAWAL|UNKNOWN - set by TransactionClassificationService, null until classified. */
+    /** INCOME|EXPENSE|INVESTMENT|DEBT_REPAYMENT|INSURANCE|INTERNAL_TRANSFER|CASH_WITHDRAWAL|REFUND|
+     *  OTHER_CREDIT|OTHER_DEBIT|UNKNOWN - set by TransactionClassificationService, null until classified. */
     @Column(name = "transaction_type")
     private String transactionType;
+
+    /** MERCHANT|P2P|UNKNOWN - see {@link com.prospr.app.service.CounterpartyTypeClassifier}. Set
+     *  alongside transactionType on every classification pass; null until first classified. */
+    @Column(name = "counterparty_type")
+    private String counterpartyType;
 
     /** User-supplied category correction; takes precedence over {@code category} everywhere via
      *  {@link #getEffectiveCategory()} so a correction is respected by every downstream analysis. */

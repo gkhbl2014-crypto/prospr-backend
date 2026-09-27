@@ -25,23 +25,20 @@ import com.prospr.app.repository.TransactionRepository;
 public class FinancialAnalysisOrchestratorService {
 
     private final TransactionRepository transactionRepository;
-    private final TransactionCategorizationService categorizationService;
-    private final TransactionClassificationService classificationService;
+    private final TransactionClassifier transactionClassifier;
     private final RecurringExpenseDetectionService recurringExpenseDetectionService;
     private final MonthlySnapshotService monthlySnapshotService;
     private final LifestyleAnalysisService lifestyleAnalysisService;
     private final SafetyNetService safetyNetService;
 
     public FinancialAnalysisOrchestratorService(TransactionRepository transactionRepository,
-                                                 TransactionCategorizationService categorizationService,
-                                                 TransactionClassificationService classificationService,
+                                                 TransactionClassifier transactionClassifier,
                                                  RecurringExpenseDetectionService recurringExpenseDetectionService,
                                                  MonthlySnapshotService monthlySnapshotService,
                                                  LifestyleAnalysisService lifestyleAnalysisService,
                                                  SafetyNetService safetyNetService) {
         this.transactionRepository = transactionRepository;
-        this.categorizationService = categorizationService;
-        this.classificationService = classificationService;
+        this.transactionClassifier = transactionClassifier;
         this.recurringExpenseDetectionService = recurringExpenseDetectionService;
         this.monthlySnapshotService = monthlySnapshotService;
         this.lifestyleAnalysisService = lifestyleAnalysisService;
@@ -50,11 +47,11 @@ public class FinancialAnalysisOrchestratorService {
 
     public void recomputeForMember(Member member) {
         List<Transaction> uncategorized = transactionRepository.findByMemberIdAndCategoryIsNull(member.getId());
-        categorizationService.categorize(uncategorized);
+        transactionClassifier.categorize(uncategorized);
         transactionRepository.saveAll(uncategorized);
 
         List<Transaction> all = transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(member.getId());
-        classificationService.classify(all);
+        transactionClassifier.classify(all);
         transactionRepository.saveAll(all);
 
         recurringExpenseDetectionService.recomputeForMember(member);

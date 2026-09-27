@@ -17,10 +17,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.prospr.app.dto.request.UpdatePayeePurposeRequest;
 import com.prospr.app.dto.request.UpdateTransactionDirectionRequest;
 import com.prospr.app.dto.request.UpdateTransactionHiddenRequest;
 import com.prospr.app.dto.request.UpdateTransactionLabelRequest;
 import com.prospr.app.dto.request.UpdateTransactionTagRequest;
+import com.prospr.app.dto.response.PayeePurposeResponse;
+import com.prospr.app.dto.response.ReviewQueueEntryResponse;
 import com.prospr.app.dto.response.TransactionResponse;
 import com.prospr.app.entity.Family;
 import com.prospr.app.entity.Member;
@@ -36,6 +39,8 @@ import com.prospr.app.service.CounterpartyKeyResolver;
 import com.prospr.app.service.EssentialCategoryCatalog;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
 import com.prospr.app.service.LifestyleCategoryCatalog;
+import com.prospr.app.service.PayeePurpose;
+import com.prospr.app.service.ReviewQueueService;
 import com.prospr.app.service.TransactionCategorizationService;
 
 @RestController
@@ -56,17 +61,20 @@ public class TransactionController {
     private final MemberTransactionLabelRepository labelRepository;
     private final CategoryTaxonomy categoryTaxonomy;
     private final CounterpartyKeyResolver counterpartyKeyResolver;
+    private final ReviewQueueService reviewQueueService;
     private final FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService;
 
     public TransactionController(TransactionRepository transactionRepository, MemberRepository memberRepository,
                                   MemberTransactionLabelRepository labelRepository,
                                   CategoryTaxonomy categoryTaxonomy, CounterpartyKeyResolver counterpartyKeyResolver,
+                                  ReviewQueueService reviewQueueService,
                                   FinancialAnalysisOrchestratorService financialAnalysisOrchestratorService) {
         this.transactionRepository = transactionRepository;
         this.memberRepository = memberRepository;
         this.labelRepository = labelRepository;
         this.categoryTaxonomy = categoryTaxonomy;
         this.counterpartyKeyResolver = counterpartyKeyResolver;
+        this.reviewQueueService = reviewQueueService;
         this.financialAnalysisOrchestratorService = financialAnalysisOrchestratorService;
     }
 
@@ -80,7 +88,7 @@ public class TransactionController {
     public ResponseEntity<List<TransactionResponse>> listTransactions(Authentication authentication) {
         Member member = resolveMember(authentication);
         Family family = member.getFamily();
-        Map<String, String> labels = loadLabels(member.getId());
+        Map<String, MemberTransactionLabel> labels = loadLabelsByCounterpartyKey(member.getId());
 
         List<TransactionResponse> transactions = (family == null
                 ? transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(member.getId())
@@ -104,7 +112,7 @@ public class TransactionController {
         txn.setIsHidden(request.getHidden());
         transactionRepository.save(txn);
 
-        return ResponseEntity.ok(toResponse(txn, loadLabels(member.getId())));
+        return ResponseEntity.ok(toResponse(txn, loadLabelsByCounterpartyKey(member.getId())));
     }
 
     /**
@@ -142,7 +150,7 @@ public class TransactionController {
 
         Transaction updated = transactionRepository.findByIdAndMemberId(id, member.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
-        return ResponseEntity.ok(toResponse(updated, loadLabels(member.getId())));
+        return ResponseEntity.ok(toResponse(updated, loadLabelsByCounterpartyKey(member.getId())));
     }
 
     /**
@@ -175,7 +183,7 @@ public class TransactionController {
 
         Transaction updated = transactionRepository.findByIdAndMemberId(id, member.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
-        return ResponseEntity.ok(toResponse(updated, loadLabels(member.getId())));
+        return ResponseEntity.ok(toResponse(updated, loadLabelsByCounterpartyKey(member.getId())));
     }
 
     /**
@@ -199,27 +207,104 @@ public class TransactionController {
 
         String label = request.getLabel() == null ? null : request.getLabel().trim();
         if (label == null || label.isEmpty()) {
-            labelRepository.deleteByMemberIdAndCounterpartyKey(member.getId(), counterpartyKey);
+            // A row can also carry `purpose` - only delete it outright when purpose is empty too,
+            // otherwise just clear the free-text note and leave the learned purpose intact.
+            labelRepository.findByMemberIdAndCounterpartyKey(member.getId(), counterpartyKey).ifPresent(entity -> {
+                if (entity.getPurpose() == null) {
+                    labelRepository.delete(entity);
+                } else {
+                    entity.setLabel(null);
+                    labelRepository.save(entity);
+                }
+            });
         } else {
             MemberTransactionLabel entity = labelRepository
                     .findByMemberIdAndCounterpartyKey(member.getId(), counterpartyKey)
                     .orElseGet(() -> MemberTransactionLabel.builder()
-                            .member(member).counterpartyKey(counterpartyKey).build());
+                            .member(member).counterpartyKey(counterpartyKey).evidenceCount(0).build());
             entity.setLabel(label);
             labelRepository.save(entity);
         }
 
-        return ResponseEntity.ok(toResponse(txn, loadLabels(member.getId())));
+        return ResponseEntity.ok(toResponse(txn, loadLabelsByCounterpartyKey(member.getId())));
     }
 
-    private Map<String, String> loadLabels(UUID memberId) {
+    /**
+     * Self-only: the "how do you usually use payments to X" answer - resolves every one of the
+     * caller's transactions that share this counterparty at once (see {@link PayeePurposeClassifier}),
+     * not just one row. Triggers a full pipeline recompute, since - unlike the free-text label - a
+     * purpose can change category/transactionType for potentially many transactions.
+     */
+    @PutMapping("/payee/purpose")
+    public ResponseEntity<PayeePurposeResponse> updatePayeePurpose(@Valid @RequestBody UpdatePayeePurposeRequest request,
+                                                                     Authentication authentication) {
+        Member member = resolveMember(authentication);
+        String purpose = request.getPurpose() == null ? "" : request.getPurpose().toUpperCase();
+        if (!PayeePurpose.ALL.contains(purpose)) {
+            throw new TransactionTagException(
+                    "Unrecognized purpose '" + request.getPurpose() + "' - expected one of "
+                            + String.join(", ", PayeePurpose.ALL));
+        }
+        String counterpartyKey = request.getCounterpartyKey();
+
+        int affectedCount = (int) transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(member.getId())
+                .stream()
+                .filter(txn -> counterpartyKeyResolver.resolveKey(txn).map(counterpartyKey::equals).orElse(false))
+                .count();
+        if (affectedCount == 0) {
+            throw new ResourceNotFoundException("No transactions found for this counterparty");
+        }
+
+        MemberTransactionLabel entity = labelRepository.findByMemberIdAndCounterpartyKey(member.getId(), counterpartyKey)
+                .orElseGet(() -> MemberTransactionLabel.builder().member(member).counterpartyKey(counterpartyKey).build());
+        entity.setPurpose(purpose);
+        entity.setEvidenceCount(affectedCount);
+        labelRepository.save(entity);
+
+        financialAnalysisOrchestratorService.recomputeForMember(member);
+
+        return ResponseEntity.ok(PayeePurposeResponse.builder()
+                .counterpartyKey(counterpartyKey)
+                .displayName(counterpartyKeyResolver.toDisplayName(counterpartyKey))
+                .purpose(purpose)
+                .affectedTransactionCount(affectedCount)
+                .build());
+    }
+
+    /**
+     * Self-only: "N transactions may need your help" - counterparties categorization couldn't resolve,
+     * grouped and ranked by how much they materially affect the caller's totals, not one row per
+     * transaction. See {@link ReviewQueueService} for the ranking/materiality logic.
+     */
+    @GetMapping("/review-queue")
+    public ResponseEntity<List<ReviewQueueEntryResponse>> reviewQueue(Authentication authentication) {
+        Member member = resolveMember(authentication);
+        List<ReviewQueueEntryResponse> queue = reviewQueueService.buildQueue(member).stream()
+                .map(entry -> ReviewQueueEntryResponse.builder()
+                        .counterpartyKey(entry.counterpartyKey())
+                        .displayName(entry.displayName())
+                        .transactionCount(entry.transactionCount())
+                        .totalAmount(entry.totalAmount())
+                        .earliestDate(entry.earliestDate())
+                        .latestDate(entry.latestDate())
+                        .patternOccurrences(entry.evidence().cadenceGuess() == null && entry.evidence().typicalAmount() == null
+                                ? null : entry.evidence().occurrences())
+                        .patternTypicalAmount(entry.evidence().typicalAmount())
+                        .patternAmountConsistent(entry.evidence().amountConsistent())
+                        .patternCadenceGuess(entry.evidence().cadenceGuess())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(queue);
+    }
+
+    private Map<String, MemberTransactionLabel> loadLabelsByCounterpartyKey(UUID memberId) {
         return labelRepository.findByMemberId(memberId).stream()
-                .collect(Collectors.toMap(MemberTransactionLabel::getCounterpartyKey, MemberTransactionLabel::getLabel));
+                .collect(Collectors.toMap(MemberTransactionLabel::getCounterpartyKey, label -> label));
     }
 
-    private TransactionResponse toResponse(Transaction txn, Map<String, String> labelsByCounterpartyKey) {
+    private TransactionResponse toResponse(Transaction txn, Map<String, MemberTransactionLabel> labelsByCounterpartyKey) {
         String effectiveCategory = txn.getEffectiveCategory();
-        String personalLabel = counterpartyKeyResolver.resolveKey(txn)
+        MemberTransactionLabel matchedLabel = counterpartyKeyResolver.resolveKey(txn)
                 .map(labelsByCounterpartyKey::get)
                 .orElse(null);
         return TransactionResponse.builder()
@@ -242,7 +327,9 @@ public class TransactionController {
                 .categoryConfidence(txn.getCategoryConfidence())
                 .transactionType(txn.getTransactionType())
                 .manuallyTagged(txn.getUserCategoryOverride() != null)
-                .personalLabel(personalLabel)
+                .personalLabel(matchedLabel == null ? null : matchedLabel.getLabel())
+                .counterpartyType(txn.getCounterpartyType())
+                .payeePurpose(matchedLabel == null ? null : matchedLabel.getPurpose())
                 .build();
     }
 

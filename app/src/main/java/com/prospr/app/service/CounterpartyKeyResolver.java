@@ -59,6 +59,37 @@ public class CounterpartyKeyResolver {
         return Optional.empty();
     }
 
+    /** A human-friendly rendering of a {@link #resolveKey} value for display (review queue, API
+     *  responses) - a VPA is shown as-is (title-casing an email-like handle would look wrong), a
+     *  PAYEE/MERCHANT/NARRATION value is title-cased. Never null; falls back to "Unknown". */
+    public String toDisplayName(String counterpartyKey) {
+        if (counterpartyKey == null || counterpartyKey.isBlank()) {
+            return "Unknown";
+        }
+        int colon = counterpartyKey.indexOf(':');
+        if (colon < 0) {
+            return counterpartyKey;
+        }
+        String prefix = counterpartyKey.substring(0, colon);
+        String value = counterpartyKey.substring(colon + 1);
+        return "VPA".equals(prefix) ? value : titleCase(value);
+    }
+
+    private String titleCase(String value) {
+        String[] words = value.trim().toLowerCase(Locale.ROOT).split("\\s+");
+        StringBuilder result = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (result.length() > 0) {
+                result.append(' ');
+            }
+            result.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return result.length() > 0 ? result.toString() : value;
+    }
+
     private Optional<String> extractUpiPayeeName(String narration) {
         if (narration == null) {
             return Optional.empty();

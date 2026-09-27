@@ -27,9 +27,12 @@ import lombok.Setter;
 import lombok.ToString;
 
 /**
- * A generated lifestyle-creep insight for one member/year/month/category/insightType. At most one
- * row is kept per that key (enforced by a unique constraint); recompute updates it in place instead
- * of inserting duplicates.
+ * One overall Lifestyle Creep summary for a member/year/month (category={@code "OVERALL"},
+ * insightType={@code "LIFESTYLE_CREEP_SUMMARY"} - see {@link com.prospr.app.service.LifestyleInsightService}).
+ * At most one row is kept per (member, year, month, category, insightType) - enforced by a unique
+ * constraint; recompute updates it in place instead of inserting duplicates. Older per-category
+ * {@code "CATEGORY_SPIKE"} rows from before this redesign may still exist for past months but are
+ * never read by current code - harmless leftover history, not migrated or deleted.
  */
 @Entity
 @Table(name = "lifestyle_insight")
@@ -80,8 +83,30 @@ public class LifestyleInsight {
     @Column(name = "increase_percentage")
     private Double increasePercentage;
 
+    /** STABLE | WATCH | INCREASING - see {@link com.prospr.app.service.LifestyleTrendEvaluator}.
+     *  Column name kept from the pre-redesign 5-tier severity field to avoid a rename migration. */
     @Column(name = "severity", nullable = false)
     private String severity;
+
+    /** How many months in a row (including this one) have been elevated vs. the baseline - 0 when
+     *  STABLE, 1 when WATCH, 2+ when INCREASING. */
+    @Column(name = "consecutive_elevated_months", nullable = false)
+    private Integer consecutiveElevatedMonths;
+
+    /** Simple "CODE:amount,CODE:amount" serialization of the categories that increased the most this
+     *  month, largest first - null when nothing increased (STABLE). No child table for two values. */
+    @Column(name = "top_category_increases")
+    private String topCategoryIncreases;
+
+    @Column(name = "new_recurring_expense_amount", precision = 15, scale = 2)
+    private BigDecimal newRecurringExpenseAmount;
+
+    @Column(name = "new_recurring_expense_label")
+    private String newRecurringExpenseLabel;
+
+    /** Null whenever income isn't reliably known for every relevant month - never a guessed value. */
+    @Column(name = "income_growth_percent")
+    private Double incomeGrowthPercent;
 
     @Column(name = "insight_type", nullable = false)
     private String insightType;

@@ -3,6 +3,7 @@ package com.prospr.app.service;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,13 +34,13 @@ import com.prospr.app.service.cache.AnalyticsCacheService;
 public class LifestyleAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(LifestyleAnalysisService.class);
-    private static final String STATUS_ACTIVE = "ACTIVE";
 
     private final MemberLifestyleStatusRepository statusRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionCategorizationService categorizationService;
     private final MonthlySpendingSummaryService monthlySummaryService;
     private final LifestyleBaselineService baselineService;
+    private final RecurringExpenseDetectionService recurringExpenseDetectionService;
     private final LifestyleInsightService insightService;
     private final LifestyleInsightRepository insightRepository;
     private final AnalyticsCacheService analyticsCacheService;
@@ -49,6 +50,7 @@ public class LifestyleAnalysisService {
                                      TransactionCategorizationService categorizationService,
                                      MonthlySpendingSummaryService monthlySummaryService,
                                      LifestyleBaselineService baselineService,
+                                     RecurringExpenseDetectionService recurringExpenseDetectionService,
                                      LifestyleInsightService insightService,
                                      LifestyleInsightRepository insightRepository,
                                      AnalyticsCacheService analyticsCacheService) {
@@ -57,6 +59,7 @@ public class LifestyleAnalysisService {
         this.categorizationService = categorizationService;
         this.monthlySummaryService = monthlySummaryService;
         this.baselineService = baselineService;
+        this.recurringExpenseDetectionService = recurringExpenseDetectionService;
         this.insightService = insightService;
         this.insightRepository = insightRepository;
         this.analyticsCacheService = analyticsCacheService;
@@ -73,10 +76,13 @@ public class LifestyleAnalysisService {
                 .orElse(LifestyleStatus.NOT_ENABLED);
     }
 
-    public List<LifestyleInsight> getActiveInsightsForCurrentMonth(Member member) {
+    /** Exact-key lookup (not a status-based query) so a legacy per-category "CATEGORY_SPIKE" row from
+     *  before this redesign can never be picked up alongside the new overall summary. */
+    public Optional<LifestyleInsight> getCurrentMonthSummary(Member member) {
         YearMonth now = YearMonth.now();
-        return insightRepository.findByMemberIdAndYearAndMonthAndStatus(
-                member.getId(), now.getYear(), now.getMonthValue(), STATUS_ACTIVE);
+        return insightRepository.findByMemberIdAndYearAndMonthAndCategoryAndInsightType(
+                member.getId(), now.getYear(), now.getMonthValue(),
+                LifestyleInsightService.CATEGORY_OVERALL, LifestyleInsightService.INSIGHT_TYPE_SUMMARY);
     }
 
     /**
@@ -117,6 +123,10 @@ public class LifestyleAnalysisService {
                 return;
             }
 
+            // Freshens RecurringExpense rows (including firstSeenDate) so the "new recurring
+            // discretionary expense" signal in the summary is never stale - this pipeline is the only
+            // trigger path that doesn't already run through FinancialAnalysisOrchestratorService.
+            recurringExpenseDetectionService.recomputeForMember(member);
             insightService.recomputeForMember(member, currentMonth, LocalDate.now());
             updateStatus(status, LifestyleStatus.READY);
             analyticsCacheService.evictLifestyleCreep(member.getId());

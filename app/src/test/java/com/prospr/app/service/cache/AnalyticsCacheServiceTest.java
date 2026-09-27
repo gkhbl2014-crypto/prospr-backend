@@ -26,7 +26,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import com.prospr.app.config.RedisCacheProperties;
-import com.prospr.app.dto.response.LifestyleInsightResponse;
+import com.prospr.app.dto.response.LifestyleCreepSummaryResponse;
 import com.prospr.app.dto.response.SafetyNetResponse;
 
 @ExtendWith(MockitoExtension.class)
@@ -53,10 +53,10 @@ class AnalyticsCacheServiceTest {
     void cacheHitReturnsCachedValueWithoutRecomputing() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         UUID memberId = memberId();
-        List<LifestyleInsightResponse> cached = List.of(LifestyleInsightResponse.builder().category("DINING").build());
+        LifestyleCreepSummaryResponse cached = LifestyleCreepSummaryResponse.builder().state("STABLE").build();
         when(valueOperations.get(CacheKeys.lifestyleCreep(memberId))).thenReturn(cached);
 
-        Optional<List<LifestyleInsightResponse>> result = service().getLifestyleCreep(memberId);
+        Optional<LifestyleCreepSummaryResponse> result = service().getLifestyleCreep(memberId);
 
         assertThat(result).contains(cached);
     }
@@ -67,7 +67,7 @@ class AnalyticsCacheServiceTest {
         UUID memberId = memberId();
         when(valueOperations.get(CacheKeys.lifestyleCreep(memberId))).thenReturn(null);
 
-        Optional<List<LifestyleInsightResponse>> result = service().getLifestyleCreep(memberId);
+        Optional<LifestyleCreepSummaryResponse> result = service().getLifestyleCreep(memberId);
 
         assertThat(result).isEmpty();
     }
@@ -99,7 +99,7 @@ class AnalyticsCacheServiceTest {
     void getSwallowsRedisExceptionAndReturnsEmpty() {
         when(redisTemplate.opsForValue()).thenThrow(new RuntimeException("connection refused"));
 
-        Optional<List<LifestyleInsightResponse>> result = service().getLifestyleCreep(memberId());
+        Optional<LifestyleCreepSummaryResponse> result = service().getLifestyleCreep(memberId());
 
         assertThat(result).isEmpty();
     }
@@ -125,8 +125,8 @@ class AnalyticsCacheServiceTest {
     void disabledCacheNeverTouchesRedisAtAll() {
         properties.setEnabled(false);
 
-        Optional<List<LifestyleInsightResponse>> result = service().getLifestyleCreep(memberId());
-        service().putLifestyleCreep(memberId(), List.of());
+        Optional<LifestyleCreepSummaryResponse> result = service().getLifestyleCreep(memberId());
+        service().putLifestyleCreep(memberId(), LifestyleCreepSummaryResponse.builder().build());
         service().evictLifestyleCreep(memberId());
 
         assertThat(result).isEmpty();

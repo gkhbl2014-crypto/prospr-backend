@@ -11,7 +11,7 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializer;
 
 import com.prospr.app.dto.response.CategoryAmount;
-import com.prospr.app.dto.response.LifestyleInsightResponse;
+import com.prospr.app.dto.response.LifestyleCreepSummaryResponse;
 import com.prospr.app.dto.response.MonthlySnapshotResponse;
 import com.prospr.app.dto.response.SafetyNetResponse;
 
@@ -30,18 +30,23 @@ class RedisSerializationTest {
             new GenericJackson2JsonRedisSerializer(RedisConfig.cacheObjectMapper());
 
     @Test
-    void lifestyleInsightResponseRoundTripsThroughJson() {
-        LifestyleInsightResponse original = LifestyleInsightResponse.builder()
-                .category("DINING")
-                .categoryLabel("Dining")
-                .baselineAmount(new BigDecimal("4500.00"))
-                .currentAmount(new BigDecimal("6200.00"))
-                .differenceAmount(new BigDecimal("1700.00"))
-                .increasePercentage(37.7)
-                .severity("MEDIUM")
-                .message("Your Dining expenses are 38% higher than usual.")
-                .monthToDate(true)
+    void lifestyleCreepSummaryResponseRoundTripsThroughJson() {
+        LifestyleCreepSummaryResponse original = LifestyleCreepSummaryResponse.builder()
+                .state("WATCH")
                 .periodLabel("Month to date (1-15 Aug)")
+                .monthToDate(true)
+                .currentAmount(new BigDecimal("26000.00"))
+                .baselineAmount(new BigDecimal("21000.00"))
+                .differenceAmount(new BigDecimal("5000.00"))
+                .increasePercentage(23.8)
+                .consecutiveElevatedMonths(1)
+                .message("Your lifestyle spending is starting to rise.")
+                .topIncreases(List.of(CategoryAmount.builder()
+                        .category("DINING").topLevelCategory("Food & Dining").amount(new BigDecimal("2400"))
+                        .build()))
+                .newRecurringExpenseLabel("Netflix")
+                .newRecurringExpenseAmount(new BigDecimal("649.00"))
+                .incomeGrowthPercent(5.0)
                 .build();
 
         byte[] serialized = serializer.serialize(original);

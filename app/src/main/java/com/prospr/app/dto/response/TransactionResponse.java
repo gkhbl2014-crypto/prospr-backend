@@ -50,4 +50,10 @@ public class TransactionResponse {
      *  set one - null otherwise. Applies to every transaction sharing the same counterparty, not
      *  just the one it was originally set on. */
     private String personalLabel;
+    /** MERCHANT | P2P | UNKNOWN | null (not yet classified) - see CounterpartyTypeClassifier. */
+    private String counterpartyType;
+    /** The caller's own answer to "how do you usually use payments to this counterparty" (PERSONAL_
+     *  TRANSFER|SHARED_EXPENSE|REPAYMENT|HOUSEHOLD|GIFT|INVESTMENT|OTHER), if they've answered it -
+     *  null otherwise. Independent of personalLabel: a counterparty can have one, both, or neither. */
+    private String payeePurpose;
 }

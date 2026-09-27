@@ -6,79 +6,43 @@ import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 
-import com.prospr.app.config.LifestyleProperties;
 import com.prospr.app.service.LifestyleCreepAnalyzer.AnalysisResult;
-import com.prospr.app.service.LifestyleCreepAnalyzer.Severity;
 
-/**
- * LifestyleProperties is constructed directly (not via Spring context) since it's a plain POJO
- * with the same defaults as application.yml's "lifestyle.*" block (15/30/50/75/30/500).
- */
+/** Pure diff/percentage math only now - see LifestyleTrendEvaluatorTest for the elevated/streak/state
+ *  decisions that used to live in this class as Severity/insightWorthy. */
 class LifestyleCreepAnalyzerTest {
 
-    private final LifestyleCreepAnalyzer analyzer = new LifestyleCreepAnalyzer(new LifestyleProperties());
+    private final LifestyleCreepAnalyzer analyzer = new LifestyleCreepAnalyzer();
 
     @Test
-    void normalSpendingDoesNotTriggerAnInsight() {
-        AnalysisResult result = analyzer.analyze(new BigDecimal("4500"), new BigDecimal("4800"));
-
-        assertThat(result.severity()).isEqualTo(Severity.NORMAL);
-        assertThat(result.insightWorthy()).isFalse();
-    }
-
-    @Test
-    void sixtyPercentIncreaseIsHighSeverityAndInsightWorthy() {
+    void computesDifferenceAndPercentageForAnIncrease() {
         AnalysisResult result = analyzer.analyze(new BigDecimal("4500"), new BigDecimal("7200"));
 
         assertThat(result.differenceAmount()).isEqualByComparingTo("2700");
         assertThat(result.increasePercentage()).isEqualTo(60.0, org.assertj.core.data.Offset.offset(0.01));
-        assertThat(result.severity()).isEqualTo(Severity.HIGH);
-        assertThat(result.insightWorthy()).isTrue();
     }
 
     @Test
-    void criticalIncreaseAboveSeventyFivePercent() {
-        AnalysisResult result = analyzer.analyze(new BigDecimal("3000"), new BigDecimal("6000"));
+    void computesANegativeDifferenceWhenCurrentIsBelowBaseline() {
+        AnalysisResult result = analyzer.analyze(new BigDecimal("20100"), new BigDecimal("19800"));
 
-        assertThat(result.increasePercentage()).isEqualTo(100.0, org.assertj.core.data.Offset.offset(0.01));
-        assertThat(result.severity()).isEqualTo(Severity.CRITICAL);
-        assertThat(result.insightWorthy()).isTrue();
-    }
-
-    @Test
-    void smallAbsoluteAmountBelowThresholdIsNotInsightWorthyEvenIfPercentageDoubles() {
-        // 100 -> 200 is a 100% increase, comfortably over the 30% gate, but the Rs100 absolute
-        // difference is far below the configured Rs500 floor.
-        AnalysisResult result = analyzer.analyze(new BigDecimal("100"), new BigDecimal("200"));
-
-        assertThat(result.increasePercentage()).isEqualTo(100.0, org.assertj.core.data.Offset.offset(0.01));
-        assertThat(result.insightWorthy()).isFalse();
+        assertThat(result.differenceAmount()).isEqualByComparingTo("-300");
+        assertThat(result.increasePercentage()).isEqualTo(-1.49, org.assertj.core.data.Offset.offset(0.01));
     }
 
     @Test
     void zeroBaselineDoesNotDivideByZero() {
         AnalysisResult result = analyzer.analyze(BigDecimal.ZERO, new BigDecimal("500"));
 
+        assertThat(result.differenceAmount()).isEqualByComparingTo("500");
         assertThat(result.increasePercentage()).isNull();
-        assertThat(result.severity()).isEqualTo(Severity.NORMAL);
-        assertThat(result.insightWorthy()).isFalse();
     }
 
     @Test
-    void mediumSeverityBetweenThirtyAndFiftyPercent() {
-        // 35% increase, and a Rs700 absolute difference clears the Rs500 floor.
-        AnalysisResult result = analyzer.analyze(new BigDecimal("2000"), new BigDecimal("2700"));
+    void nullInputsAreTreatedAsZero() {
+        AnalysisResult result = analyzer.analyze(null, null);
 
-        assertThat(result.severity()).isEqualTo(Severity.MEDIUM);
-        assertThat(result.insightWorthy()).isTrue();
-    }
-
-    @Test
-    void lowSeverityBetweenFifteenAndThirtyPercentIsNeverInsightWorthy() {
-        // Below the 30% insight gate even though it's classified LOW, not NORMAL.
-        AnalysisResult result = analyzer.analyze(new BigDecimal("1000"), new BigDecimal("1200"));
-
-        assertThat(result.severity()).isEqualTo(Severity.LOW);
-        assertThat(result.insightWorthy()).isFalse();
+        assertThat(result.differenceAmount()).isEqualByComparingTo("0");
+        assertThat(result.increasePercentage()).isNull();
     }
 }

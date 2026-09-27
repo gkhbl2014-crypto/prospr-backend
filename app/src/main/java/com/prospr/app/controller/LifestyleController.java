@@ -3,6 +3,7 @@ package com.prospr.app.controller;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -15,7 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.prospr.app.config.LifestyleProperties;
-import com.prospr.app.dto.response.LifestyleInsightResponse;
+import com.prospr.app.dto.response.CategoryAmount;
+import com.prospr.app.dto.response.LifestyleCreepSummaryResponse;
 import com.prospr.app.dto.response.LifestyleStatusResponse;
 import com.prospr.app.entity.LifestyleInsight;
 import com.prospr.app.entity.Member;
@@ -82,27 +84,26 @@ public class LifestyleController {
      * a timer for.
      */
     @GetMapping("/insights")
-    public ResponseEntity<List<LifestyleInsightResponse>> insights(Authentication authentication) {
+    public ResponseEntity<LifestyleCreepSummaryResponse> insights(Authentication authentication) {
         Member member = resolveMember(authentication);
 
-        Optional<List<LifestyleInsightResponse>> cached = analyticsCacheService.getLifestyleCreep(member.getId());
+        Optional<LifestyleCreepSummaryResponse> cached = analyticsCacheService.getLifestyleCreep(member.getId());
         if (cached.isPresent()) {
-            return ResponseEntity.ok(cached.get());
+            return ResponseEntity.ok(cached.orElse(null));
         }
-        List<LifestyleInsightResponse> insights = analyticsCacheService.withStampedeGuard(
+        LifestyleCreepSummaryResponse summary = analyticsCacheService.withStampedeGuard(
                 CacheKeys.lifestyleCreep(member.getId()), () -> {
-                    Optional<List<LifestyleInsightResponse>> recheck = analyticsCacheService.getLifestyleCreep(member.getId());
+                    Optional<LifestyleCreepSummaryResponse> recheck = analyticsCacheService.getLifestyleCreep(member.getId());
                     if (recheck.isPresent()) {
-                        return recheck.get();
+                        return recheck.orElse(null);
                     }
-                    List<LifestyleInsightResponse> computed = lifestyleAnalysisService.getActiveInsightsForCurrentMonth(member)
-                            .stream()
+                    LifestyleCreepSummaryResponse computed = lifestyleAnalysisService.getCurrentMonthSummary(member)
                             .map(this::toResponse)
-                            .toList();
+                            .orElse(null);
                     analyticsCacheService.putLifestyleCreep(member.getId(), computed);
                     return computed;
                 });
-        return ResponseEntity.ok(insights);
+        return ResponseEntity.ok(summary);
     }
 
     /**
@@ -122,7 +123,7 @@ public class LifestyleController {
                 .build());
     }
 
-    private LifestyleInsightResponse toResponse(LifestyleInsight insight) {
+    private LifestyleCreepSummaryResponse toResponse(LifestyleInsight insight) {
         YearMonth insightMonth = YearMonth.of(insight.getYear(), insight.getMonth());
         YearMonth currentMonth = YearMonth.now();
         LocalDate today = LocalDate.now();
@@ -132,18 +133,42 @@ public class LifestyleController {
                 ? "Month to date (1–" + today.format(MONTH_FORMAT) + ")"
                 : insightMonth.atDay(1).format(MONTH_YEAR_FORMAT);
 
-        return LifestyleInsightResponse.builder()
-                .category(insight.getCategory())
-                .categoryLabel(categoryCatalog.label(insight.getCategory()))
-                .baselineAmount(insight.getBaselineAmount())
+        return LifestyleCreepSummaryResponse.builder()
+                .state(insight.getSeverity())
+                .periodLabel(periodLabel)
+                .monthToDate(monthToDate)
                 .currentAmount(insight.getCurrentAmount())
+                .baselineAmount(insight.getBaselineAmount())
                 .differenceAmount(insight.getDifferenceAmount())
                 .increasePercentage(insight.getIncreasePercentage())
-                .severity(insight.getSeverity())
+                .consecutiveElevatedMonths(insight.getConsecutiveElevatedMonths() == null ? 0 : insight.getConsecutiveElevatedMonths())
                 .message(insight.getMessage())
-                .monthToDate(monthToDate)
-                .periodLabel(periodLabel)
+                .topIncreases(parseTopIncreases(insight.getTopCategoryIncreases()))
+                .newRecurringExpenseLabel(insight.getNewRecurringExpenseLabel())
+                .newRecurringExpenseAmount(insight.getNewRecurringExpenseAmount())
+                .incomeGrowthPercent(insight.getIncomeGrowthPercent())
                 .build();
+    }
+
+    /** Parses the entity's simple "CODE:amount,CODE:amount" serialization back into display-ready
+     *  category amounts - no child table for what's at most 2 values. */
+    private List<CategoryAmount> parseTopIncreases(String serialized) {
+        List<CategoryAmount> result = new ArrayList<>();
+        if (serialized == null || serialized.isBlank()) {
+            return result;
+        }
+        for (String entry : serialized.split(",")) {
+            String[] parts = entry.split(":");
+            if (parts.length != 2) {
+                continue;
+            }
+            result.add(CategoryAmount.builder()
+                    .category(parts[0])
+                    .topLevelCategory(categoryCatalog.label(parts[0]))
+                    .amount(new java.math.BigDecimal(parts[1]))
+                    .build());
+        }
+        return result;
     }
 
     private String describeStatus(String status) {

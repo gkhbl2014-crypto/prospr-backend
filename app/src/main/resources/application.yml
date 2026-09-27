@@ -39,6 +39,12 @@ recurring-expense:
   high-confidence-min-occurrences: ${RECURRING_HIGH_CONFIDENCE_MIN_OCCURRENCES:4}
   high-confidence-amount-tolerance-percent: ${RECURRING_HIGH_CONFIDENCE_AMOUNT_TOLERANCE_PERCENT:5.0}
 
+classification:
+  review-queue-min-total-amount-inr: ${CLASSIFICATION_REVIEW_QUEUE_MIN_TOTAL_AMOUNT_INR:300}
+  review-queue-max-results: ${CLASSIFICATION_REVIEW_QUEUE_MAX_RESULTS:20}
+  pattern-min-occurrences: ${CLASSIFICATION_PATTERN_MIN_OCCURRENCES:2}
+  pattern-amount-tolerance-percent: ${CLASSIFICATION_PATTERN_AMOUNT_TOLERANCE_PERCENT:10.0}
+
 spring:
   data:
     redis:

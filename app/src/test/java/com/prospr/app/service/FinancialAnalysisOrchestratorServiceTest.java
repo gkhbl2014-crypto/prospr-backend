@@ -24,9 +24,7 @@ class FinancialAnalysisOrchestratorServiceTest {
     @Mock
     private TransactionRepository transactionRepository;
     @Mock
-    private TransactionCategorizationService categorizationService;
-    @Mock
-    private TransactionClassificationService classificationService;
+    private TransactionClassifier transactionClassifier;
     @Mock
     private RecurringExpenseDetectionService recurringExpenseDetectionService;
     @Mock
@@ -37,9 +35,8 @@ class FinancialAnalysisOrchestratorServiceTest {
     private SafetyNetService safetyNetService;
 
     private FinancialAnalysisOrchestratorService service() {
-        return new FinancialAnalysisOrchestratorService(transactionRepository, categorizationService,
-                classificationService, recurringExpenseDetectionService, monthlySnapshotService,
-                lifestyleAnalysisService, safetyNetService);
+        return new FinancialAnalysisOrchestratorService(transactionRepository, transactionClassifier,
+                recurringExpenseDetectionService, monthlySnapshotService, lifestyleAnalysisService, safetyNetService);
     }
 
     private Member member() {
@@ -56,11 +53,11 @@ class FinancialAnalysisOrchestratorServiceTest {
 
         service().recomputeForMember(member);
 
-        InOrder order = inOrder(categorizationService, transactionRepository, classificationService,
+        InOrder order = inOrder(transactionClassifier, transactionRepository,
                 recurringExpenseDetectionService, monthlySnapshotService, lifestyleAnalysisService, safetyNetService);
-        order.verify(categorizationService).categorize(uncategorized);
+        order.verify(transactionClassifier).categorize(uncategorized);
         order.verify(transactionRepository).saveAll(uncategorized);
-        order.verify(classificationService).classify(all);
+        order.verify(transactionClassifier).classify(all);
         order.verify(transactionRepository).saveAll(all);
         order.verify(recurringExpenseDetectionService).recomputeForMember(member);
         order.verify(monthlySnapshotService).recomputeForMember(member);

@@ -13,7 +13,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import com.prospr.app.config.RedisCacheProperties;
-import com.prospr.app.dto.response.LifestyleInsightResponse;
+import com.prospr.app.dto.response.LifestyleCreepSummaryResponse;
 import com.prospr.app.dto.response.MonthlySnapshotResponse;
 import com.prospr.app.dto.response.SafetyNetResponse;
 
@@ -41,11 +41,11 @@ public class AnalyticsCacheService {
 
     // ---- Lifestyle Creep ----------------------------------------------------------------------
 
-    public Optional<List<LifestyleInsightResponse>> getLifestyleCreep(UUID memberId) {
+    public Optional<LifestyleCreepSummaryResponse> getLifestyleCreep(UUID memberId) {
         return Optional.ofNullable(read(CacheKeys.lifestyleCreep(memberId)));
     }
 
-    public void putLifestyleCreep(UUID memberId, List<LifestyleInsightResponse> value) {
+    public void putLifestyleCreep(UUID memberId, LifestyleCreepSummaryResponse value) {
         write(CacheKeys.lifestyleCreep(memberId), value, Duration.ofMinutes(properties.getLifestyleCreepTtlMinutes()));
     }
 
