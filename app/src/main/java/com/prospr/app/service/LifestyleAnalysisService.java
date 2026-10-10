@@ -1,6 +1,5 @@
 package com.prospr.app.service;
 
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +43,7 @@ public class LifestyleAnalysisService {
     private final LifestyleInsightService insightService;
     private final LifestyleInsightRepository insightRepository;
     private final AnalyticsCacheService analyticsCacheService;
+    private final CurrentMonthResolver currentMonthResolver;
 
     public LifestyleAnalysisService(MemberLifestyleStatusRepository statusRepository,
                                      TransactionRepository transactionRepository,
@@ -53,7 +53,8 @@ public class LifestyleAnalysisService {
                                      RecurringExpenseDetectionService recurringExpenseDetectionService,
                                      LifestyleInsightService insightService,
                                      LifestyleInsightRepository insightRepository,
-                                     AnalyticsCacheService analyticsCacheService) {
+                                     AnalyticsCacheService analyticsCacheService,
+                                     CurrentMonthResolver currentMonthResolver) {
         this.statusRepository = statusRepository;
         this.transactionRepository = transactionRepository;
         this.categorizationService = categorizationService;
@@ -63,6 +64,7 @@ public class LifestyleAnalysisService {
         this.insightService = insightService;
         this.insightRepository = insightRepository;
         this.analyticsCacheService = analyticsCacheService;
+        this.currentMonthResolver = currentMonthResolver;
     }
 
     /** Runs the pipeline against whatever transaction history already exists for this member. */
@@ -79,9 +81,9 @@ public class LifestyleAnalysisService {
     /** Exact-key lookup (not a status-based query) so a legacy per-category "CATEGORY_SPIKE" row from
      *  before this redesign can never be picked up alongside the new overall summary. */
     public Optional<LifestyleInsight> getCurrentMonthSummary(Member member) {
-        YearMonth now = YearMonth.now();
+        YearMonth month = currentMonthResolver.resolve(member.getId()).month();
         return insightRepository.findByMemberIdAndYearAndMonthAndCategoryAndInsightType(
-                member.getId(), now.getYear(), now.getMonthValue(),
+                member.getId(), month.getYear(), month.getMonthValue(),
                 LifestyleInsightService.CATEGORY_OVERALL, LifestyleInsightService.INSIGHT_TYPE_SUMMARY);
     }
 
@@ -115,8 +117,8 @@ public class LifestyleAnalysisService {
 
             updateStatus(status, LifestyleStatus.BUILDING_BASELINE);
             monthlySummaryService.recomputeForMember(member);
-            YearMonth currentMonth = YearMonth.now();
-            LifestyleBaselineService.Result baselineResult = baselineService.recomputeForMember(member, currentMonth);
+            CurrentMonthResolver.EffectivePeriod period = currentMonthResolver.resolve(member.getId());
+            LifestyleBaselineService.Result baselineResult = baselineService.recomputeForMember(member, period.month());
 
             if (baselineResult == LifestyleBaselineService.Result.INSUFFICIENT_HISTORY) {
                 updateStatus(status, LifestyleStatus.INSUFFICIENT_HISTORY);
@@ -127,7 +129,7 @@ public class LifestyleAnalysisService {
             // discretionary expense" signal in the summary is never stale - this pipeline is the only
             // trigger path that doesn't already run through FinancialAnalysisOrchestratorService.
             recurringExpenseDetectionService.recomputeForMember(member);
-            insightService.recomputeForMember(member, currentMonth, LocalDate.now());
+            insightService.recomputeForMember(member, period.month(), period.asOfDate());
             updateStatus(status, LifestyleStatus.READY);
             analyticsCacheService.evictLifestyleCreep(member.getId());
         } catch (Exception ex) {

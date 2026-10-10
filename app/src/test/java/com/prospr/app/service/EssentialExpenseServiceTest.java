@@ -32,7 +32,8 @@ class EssentialExpenseServiceTest {
     private final EssentialCategoryCatalog catalog = new EssentialCategoryCatalog();
 
     private EssentialExpenseService service() {
-        return new EssentialExpenseService(transactionRepository, categorizationService, catalog);
+        return new EssentialExpenseService(transactionRepository, categorizationService, catalog,
+                new CurrentMonthResolver(transactionRepository));
     }
 
     private Member member() {

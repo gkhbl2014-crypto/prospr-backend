@@ -41,7 +41,7 @@ class MonthlySnapshotServiceTest {
 
     private MonthlySnapshotService service() {
         return new MonthlySnapshotService(transactionRepository, snapshotRepository, properties,
-                analyticsCacheService, essentialCategoryCatalog);
+                analyticsCacheService, essentialCategoryCatalog, new CurrentMonthResolver(transactionRepository));
     }
 
     private Member member() {

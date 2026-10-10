@@ -20,6 +20,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     List<Transaction> findByMemberIdOrderByTransactionTimestampDesc(UUID memberId);
 
+    /** The member's single most recent transaction - used to resolve "the current month" from actual
+     *  data rather than the wall clock (see {@code CurrentMonthResolver}). */
+    Optional<Transaction> findFirstByMemberIdOrderByTransactionTimestampDesc(UUID memberId);
+
     /** Combined feed for every member of a household, for the family dashboard. */
     List<Transaction> findByMemberFamilyIdOrderByTransactionTimestampDesc(UUID familyId);
 

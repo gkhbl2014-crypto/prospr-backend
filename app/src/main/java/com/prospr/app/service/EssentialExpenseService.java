@@ -30,13 +30,16 @@ public class EssentialExpenseService {
     private final TransactionRepository transactionRepository;
     private final TransactionCategorizationService categorizationService;
     private final EssentialCategoryCatalog essentialCategoryCatalog;
+    private final CurrentMonthResolver currentMonthResolver;
 
     public EssentialExpenseService(TransactionRepository transactionRepository,
                                     TransactionCategorizationService categorizationService,
-                                    EssentialCategoryCatalog essentialCategoryCatalog) {
+                                    EssentialCategoryCatalog essentialCategoryCatalog,
+                                    CurrentMonthResolver currentMonthResolver) {
         this.transactionRepository = transactionRepository;
         this.categorizationService = categorizationService;
         this.essentialCategoryCatalog = essentialCategoryCatalog;
+        this.currentMonthResolver = currentMonthResolver;
     }
 
     /**
@@ -50,7 +53,7 @@ public class EssentialExpenseService {
     }
 
     public Result computeAverage(Member member, int lookbackMonths) {
-        return computeAverage(member, lookbackMonths, YearMonth.now());
+        return computeAverage(member, lookbackMonths, currentMonthResolver.resolve(member.getId()).month());
     }
 
     /** @param asOfMonth the current month - completed months are the {@code lookbackMonths} before it. */

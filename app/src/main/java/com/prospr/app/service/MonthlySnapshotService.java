@@ -51,17 +51,20 @@ public class MonthlySnapshotService {
     private final FinancialAnalysisProperties properties;
     private final AnalyticsCacheService analyticsCacheService;
     private final EssentialCategoryCatalog essentialCategoryCatalog;
+    private final CurrentMonthResolver currentMonthResolver;
 
     public MonthlySnapshotService(TransactionRepository transactionRepository,
                                    MemberMonthlySnapshotRepository snapshotRepository,
                                    FinancialAnalysisProperties properties,
                                    AnalyticsCacheService analyticsCacheService,
-                                   EssentialCategoryCatalog essentialCategoryCatalog) {
+                                   EssentialCategoryCatalog essentialCategoryCatalog,
+                                   CurrentMonthResolver currentMonthResolver) {
         this.transactionRepository = transactionRepository;
         this.snapshotRepository = snapshotRepository;
         this.properties = properties;
         this.analyticsCacheService = analyticsCacheService;
         this.essentialCategoryCatalog = essentialCategoryCatalog;
+        this.currentMonthResolver = currentMonthResolver;
     }
 
     private static final class MonthTotals {
@@ -86,7 +89,7 @@ public class MonthlySnapshotService {
 
     public void recomputeForMember(Member member) {
         List<Transaction> all = transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(member.getId());
-        YearMonth current = YearMonth.now();
+        YearMonth current = currentMonthResolver.resolve(member.getId()).month();
         int months = properties.getSnapshotHistoryMonths();
         for (int i = 0; i < months; i++) {
             recomputeMonth(member, current.minusMonths(i), all);
