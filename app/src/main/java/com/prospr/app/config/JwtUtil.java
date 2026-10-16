@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Jwts;
@@ -18,11 +19,15 @@ public class JwtUtil {
 
     private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
 
-    private static final String SECRET = "QmFzZTY0RW5jb2RlZFNlY3JldEtleTEyMzQ1Njc4OTA=";
     private static final long EXPIRATION_MS = 1000L * 60 * 60 * 10; // 10 hours
 
+    /** Base64-encoded HMAC key. Must be set via the JWT_SECRET environment variable - no default,
+     *  since this signs every login token and must never be a value anyone can read from source. */
+    @Value("${JWT_SECRET}")
+    private String secret;
+
     private Key getSignKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(SECRET));
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
     public String generateToken(String subject, Map<String, Object> claims) {

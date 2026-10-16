@@ -2,8 +2,10 @@ package com.prospr.app.config;
 
 
 
+import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,7 +25,12 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
 	private final JwtFilter jwtFilter;
-	
+
+	/** Comma-separated. Defaults cover local dev only - set ALLOWED_ORIGINS in production to the
+	 *  real deployed frontend URL(s), e.g. a Render/Vercel/Netlify domain. */
+	@Value("${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8081,http://localhost:53036,http://localhost:3000,https://print-moustache-tricolor.ngrok-free.dev}")
+	private String allowedOrigins;
+
 	  @Bean
 	    public PasswordEncoder passwordEncoder() {
 	        return new BCryptPasswordEncoder();
@@ -53,12 +60,10 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-                "http://localhost:8081",
-            "http://localhost:53036",
-            "http://localhost:3000",
-            "https://print-moustache-tricolor.ngrok-free.dev"));
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
