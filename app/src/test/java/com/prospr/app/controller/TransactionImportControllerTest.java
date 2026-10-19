@@ -73,7 +73,7 @@ class TransactionImportControllerTest {
 
     private void stubCaller(Member member) {
         when(authentication.getName()).thenReturn(member.getEmail());
-        when(memberRepository.findByEmail(member.getEmail())).thenReturn(Optional.of(member));
+        when(memberRepository.findByAuthSubject(member.getEmail())).thenReturn(Optional.of(member));
     }
 
     @Test

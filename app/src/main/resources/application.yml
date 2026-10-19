@@ -16,6 +16,18 @@ setu:
     from: ${SETU_DATA_RANGE_FROM:2022-12-01T00:00:00Z}
     to: ${SETU_DATA_RANGE_TO:2023-08-12T00:00:00Z}
 
+otp:
+  expiry-minutes: ${OTP_EXPIRY_MINUTES:10}
+  max-verify-attempts: ${OTP_MAX_VERIFY_ATTEMPTS:5}
+  resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:30}
+  max-sends-per-hour: ${OTP_MAX_SENDS_PER_HOUR:5}
+  verified-valid-minutes: ${OTP_VERIFIED_VALID_MINUTES:15}
+  # Local development only: logs the OTP instead of sending an SMS. Leave unset in production.
+  dev-mode: ${OTP_DEV_MODE:false}
+  msg91:
+    auth-key: ${MSG91_AUTH_KEY:}
+    template-id: ${MSG91_TEMPLATE_ID:}
+
 lifestyle:
   baseline-months: ${LIFESTYLE_BASELINE_MONTHS:6}
   low-threshold-percent: ${LIFESTYLE_LOW_THRESHOLD_PERCENT:15}

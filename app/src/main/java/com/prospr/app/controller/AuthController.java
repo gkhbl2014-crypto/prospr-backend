@@ -17,12 +17,16 @@ import org.springframework.web.bind.annotation.RestController;
 import com.prospr.app.dto.request.FamilyLoginRequest;
 import com.prospr.app.dto.request.JoinFamilyRequest;
 import com.prospr.app.dto.request.LoginRequest;
+import com.prospr.app.dto.request.OtpSendRequest;
+import com.prospr.app.dto.request.OtpVerifyRequest;
 import com.prospr.app.dto.request.RegisterRequest;
 import com.prospr.app.dto.response.FamilyMemberSummaryResponse;
 import com.prospr.app.dto.response.JoinFamilyResponse;
 import com.prospr.app.dto.response.LoginResponse;
+import com.prospr.app.dto.response.OtpVerifyResponse;
 import com.prospr.app.dto.response.RegisterResponse;
 import com.prospr.app.service.LoginService;
+import com.prospr.app.service.PhoneVerificationService;
 import com.prospr.app.service.RegistrationService;
 
 import jakarta.validation.Valid;
@@ -36,15 +40,32 @@ public class AuthController {
 
     private final RegistrationService registrationService;
     private final LoginService loginService;
+    private final PhoneVerificationService phoneVerificationService;
 
-    public AuthController(RegistrationService registrationService, LoginService loginService) {
+    public AuthController(RegistrationService registrationService, LoginService loginService,
+                          PhoneVerificationService phoneVerificationService) {
         this.registrationService = registrationService;
         this.loginService = loginService;
+        this.phoneVerificationService = phoneVerificationService;
+    }
+
+    /** Step 1 of registration: texts a one-time code to the mobile number. */
+    @PostMapping("/otp/send")
+    public ResponseEntity<Void> sendOtp(@Valid @RequestBody OtpSendRequest request) {
+        phoneVerificationService.sendOtp(request.getPhone());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Step 2: checks the code and returns the verificationId that /register requires. */
+    @PostMapping("/otp/verify")
+    public ResponseEntity<OtpVerifyResponse> verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
+        return ResponseEntity.ok(new OtpVerifyResponse(
+                phoneVerificationService.verifyOtp(request.getPhone(), request.getCode())));
     }
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
-        log.info("Received registration request for email '{}'", request.getEmail());
+        log.info("Received registration request for family '{}'", request.getFamilyName());
         RegisterResponse response = registrationService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -59,7 +80,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        log.info("Received login request for email '{}'", request.getEmail());
+        log.info("Received login request");
         LoginResponse response = loginService.login(request);
         return ResponseEntity.ok(response);
     }

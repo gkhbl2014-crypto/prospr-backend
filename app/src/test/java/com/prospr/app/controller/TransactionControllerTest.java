@@ -128,7 +128,7 @@ class TransactionControllerTest {
         Family family = Family.builder().id(UUID.randomUUID()).build();
         Member caller = member("caller@example.com", family);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberFamilyIdOrderByTransactionTimestampDesc(family.getId()))
                 .thenReturn(List.of(txn(caller, false), txn(caller, true)));
 
@@ -148,7 +148,7 @@ class TransactionControllerTest {
         Family family = Family.builder().id(UUID.randomUUID()).build();
         Member caller = member("caller@example.com", family);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberFamilyIdOrderByTransactionTimestampDesc(family.getId()))
                 .thenReturn(List.of(txn(caller, false)));
 
@@ -162,7 +162,7 @@ class TransactionControllerTest {
         Member caller = member("caller@example.com", null);
         Transaction owned = txn(caller, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
 
         TransactionResponse result = controller().updateHidden(owned.getId(), request(true), authentication).getBody();
@@ -176,7 +176,7 @@ class TransactionControllerTest {
         Member caller = member("caller@example.com", null);
         Transaction owned = txn(caller, true);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
 
         TransactionResponse result = controller().updateHidden(owned.getId(), request(false), authentication).getBody();
@@ -190,7 +190,7 @@ class TransactionControllerTest {
         Member other = member("other@example.com", null);
         Transaction othersTxn = txn(other, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         // findByIdAndMemberId is scoped to the caller's own id, so another member's transaction id
         // simply never resolves for this caller - this is the actual IDOR protection.
         when(transactionRepository.findByIdAndMemberId(othersTxn.getId(), caller.getId())).thenReturn(Optional.empty());
@@ -204,7 +204,7 @@ class TransactionControllerTest {
         Member caller = member("caller@example.com", null);
         Transaction owned = txn(caller, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
 
         TransactionResponse result = controller().updateTag(owned.getId(), tagRequest("INVESTMENT"), authentication).getBody();
@@ -222,7 +222,7 @@ class TransactionControllerTest {
         Transaction essential = txn(caller, false);
         Transaction lifestyle = txn(caller, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(essential.getId(), caller.getId())).thenReturn(Optional.of(essential));
         when(transactionRepository.findByIdAndMemberId(lifestyle.getId(), caller.getId())).thenReturn(Optional.of(lifestyle));
 
@@ -239,7 +239,7 @@ class TransactionControllerTest {
         Transaction owned = txn(caller, false);
         owned.setUserCategoryOverride("INVESTMENT");
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
 
         TransactionResponse result = controller().updateTag(owned.getId(), tagRequest("AUTO"), authentication).getBody();
@@ -253,7 +253,7 @@ class TransactionControllerTest {
         Member caller = member("caller@example.com", null);
         Transaction owned = txn(caller, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
 
         assertThatThrownBy(() -> controller().updateTag(owned.getId(), tagRequest("NOT_A_REAL_TAG"), authentication))
@@ -266,7 +266,7 @@ class TransactionControllerTest {
         Member other = member("other@example.com", null);
         Transaction othersTxn = txn(other, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(othersTxn.getId(), caller.getId())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller().updateTag(othersTxn.getId(), tagRequest("INVESTMENT"), authentication))
@@ -281,7 +281,7 @@ class TransactionControllerTest {
         owned.setCategoryConfidence(TransactionCategorizationService.CONFIDENCE_MEDIUM);
         owned.setCategorySource(TransactionCategorizationService.SOURCE_FALLBACK_RULE);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
 
         TransactionResponse result = controller().updateDirection(owned.getId(), directionRequest("CREDIT"), authentication).getBody();
@@ -300,7 +300,7 @@ class TransactionControllerTest {
         Member other = member("other@example.com", null);
         Transaction othersTxn = txn(other, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(othersTxn.getId(), caller.getId())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller().updateDirection(othersTxn.getId(), directionRequest("CREDIT"), authentication))
@@ -313,7 +313,7 @@ class TransactionControllerTest {
         Transaction owned = txn(caller, false);
         owned.setNarration("UPI/402312345678/Local Oil Store/oilstore@icici/ICICI/Payment");
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
         when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:oilstore@icici"))
                 .thenReturn(Optional.empty());
@@ -335,7 +335,7 @@ class TransactionControllerTest {
         Transaction second = txn(caller, false);
         second.setNarration("UPI/509912345678/Local Oil Store/oilstore@icici/ICICI/Payment");
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
                 .thenReturn(List.of(first, second));
         when(labelRepository.findByMemberId(caller.getId())).thenReturn(List.of(
@@ -354,7 +354,7 @@ class TransactionControllerTest {
         MemberTransactionLabel existing = MemberTransactionLabel.builder()
                 .counterpartyKey("VPA:oilstore@icici").label("Oil").build();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
         when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:oilstore@icici"))
                 .thenReturn(Optional.of(existing));
@@ -373,7 +373,7 @@ class TransactionControllerTest {
         MemberTransactionLabel existing = MemberTransactionLabel.builder()
                 .counterpartyKey("VPA:oilstore@icici").label("Oil").purpose(PayeePurpose.HOUSEHOLD).build();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(owned.getId(), caller.getId())).thenReturn(Optional.of(owned));
         when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:oilstore@icici"))
                 .thenReturn(Optional.of(existing));
@@ -391,7 +391,7 @@ class TransactionControllerTest {
         Member other = member("other@example.com", null);
         Transaction othersTxn = txn(other, false);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByIdAndMemberId(othersTxn.getId(), caller.getId())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller().updateLabel(othersTxn.getId(), labelRequest("Oil"), authentication))
@@ -406,7 +406,7 @@ class TransactionControllerTest {
         Transaction second = txn(caller, false);
         second.setNarration("UPI/RAHULKUMAR@okaxis");
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
                 .thenReturn(List.of(first, second));
         when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:rahulkumar@okaxis"))
@@ -429,7 +429,7 @@ class TransactionControllerTest {
         Transaction owned = txn(caller, false);
         owned.setNarration("UPI/RAHULKUMAR@okaxis");
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
                 .thenReturn(List.of(owned));
         when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:rahulkumar@okaxis"))
@@ -451,7 +451,7 @@ class TransactionControllerTest {
         Transaction owned = txn(caller, false);
         owned.setNarration("UPI/LANDLORDKUMAR@okaxis");
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId()))
                 .thenReturn(List.of(owned));
         when(labelRepository.findByMemberIdAndCounterpartyKey(caller.getId(), "VPA:landlordkumar@okaxis"))
@@ -468,7 +468,7 @@ class TransactionControllerTest {
     void unrecognizedPurposeIsRejected() {
         Member caller = member("caller@example.com", null);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
 
         assertThatThrownBy(() -> controller().updatePayeePurpose(purposeRequest("VPA:x@y", "NOT_A_REAL_PURPOSE"), authentication))
                 .isInstanceOf(TransactionTagException.class);
@@ -478,7 +478,7 @@ class TransactionControllerTest {
     void settingAPurposeForACounterpartyWithNoTransactionsIsRejected() {
         Member caller = member("caller@example.com", null);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberIdOrderByTransactionTimestampDesc(caller.getId())).thenReturn(List.of());
 
         assertThatThrownBy(() -> controller().updatePayeePurpose(purposeRequest("VPA:nobody@okaxis", "GIFT"), authentication))
@@ -489,7 +489,7 @@ class TransactionControllerTest {
     void reviewQueueDelegatesToTheReviewQueueServiceForTheCallerOnly() {
         Member caller = member("caller@example.com", null);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(reviewQueueService.buildQueue(caller)).thenReturn(List.of(new ReviewQueueService.ReviewQueueEntry(
                 "VPA:rahulkumar@okaxis", "rahulkumar@okaxis", ReviewQueueService.DIRECTION_DEBIT, 3, new BigDecimal("2400"),
                 java.time.LocalDate.of(2026, 4, 1), java.time.LocalDate.of(2026, 6, 1),
@@ -510,7 +510,7 @@ class TransactionControllerTest {
         Family family = Family.builder().id(UUID.randomUUID()).build();
         Member caller = member("caller@example.com", family);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(transactionRepository.findByMemberFamilyIdOrderByTransactionTimestampDesc(family.getId()))
                 .thenReturn(List.of());
 

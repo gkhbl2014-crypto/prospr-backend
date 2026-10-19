@@ -51,7 +51,7 @@ public class ActionableInsightController {
     }
 
     private Member resolveMember(Authentication authentication) {
-        return memberRepository.findByEmail(authentication.getName())
+        return memberRepository.findByAuthSubject(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Logged-in member was not found"));
     }
 }

@@ -81,6 +81,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(OtpException.class)
+    public ResponseEntity<ErrorResponse> handleOtp(OtpException ex) {
+        log.warn("OTP request rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), ex.getStatus());
+    }
+
     @ExceptionHandler(GoalValidationException.class)
     public ResponseEntity<ErrorResponse> handleGoalValidation(GoalValidationException ex) {
         log.warn("Goal write rejected: {}", ex.getMessage());

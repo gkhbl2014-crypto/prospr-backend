@@ -19,8 +19,10 @@ import com.prospr.app.exception.RegistrationException;
 import com.prospr.app.mapper.RegistrationMapper;
 import com.prospr.app.repository.FamilyRepository;
 import com.prospr.app.repository.MemberRepository;
+import com.prospr.app.service.PhoneVerificationService;
 import com.prospr.app.service.RegistrationService;
 import com.prospr.app.util.InviteCodeGenerator;
+import com.prospr.app.util.PhoneNumbers;
 
 @Service
 public class RegistrationServiceImpl implements RegistrationService {
@@ -34,24 +36,38 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final InviteCodeGenerator inviteCodeGenerator;
     private final PasswordEncoder passwordEncoder;
 
+    private final PhoneVerificationService phoneVerificationService;
+
     public RegistrationServiceImpl(FamilyRepository familyRepository,
                                     MemberRepository memberRepository,
                                     RegistrationMapper registrationMapper,
                                     InviteCodeGenerator inviteCodeGenerator,
-                                    PasswordEncoder passwordEncoder) {
+                                    PasswordEncoder passwordEncoder,
+                                    PhoneVerificationService phoneVerificationService) {
         this.familyRepository = familyRepository;
         this.memberRepository = memberRepository;
         this.registrationMapper = registrationMapper;
         this.inviteCodeGenerator = inviteCodeGenerator;
         this.passwordEncoder = passwordEncoder;
+        this.phoneVerificationService = phoneVerificationService;
     }
 
     @Override
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
-        log.info("Registering new family '{}' with admin email '{}'", request.getFamilyName(), request.getEmail());
+        log.info("Registering new family '{}'", request.getFamilyName());
+
+        try {
+            request.setPhone(PhoneNumbers.normalizeIndian(request.getPhone()));
+        } catch (IllegalArgumentException ex) {
+            throw new RegistrationException(ex.getMessage());
+        }
+        request.setEmail(blankToNull(request.getEmail()));
 
         validateUniqueness(request.getEmail(), request.getPhone());
+        // Consumed inside this transaction: if the registration below fails, the verification is
+        // released again and the user can retry without a new code.
+        phoneVerificationService.consumeVerification(request.getPhone(), request.getVerificationId());
 
         try {
             String inviteCode = generateUniqueInviteCode();
@@ -98,8 +114,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private void validateUniqueness(String email, String phone) {
-        if (memberRepository.existsByEmail(email)) {
+        if (email != null && memberRepository.existsByEmail(email)) {
             log.warn("Registration rejected: email '{}' is already registered", email);
             throw new DuplicateEmailException("An account with email '" + email + "' already exists");
         }

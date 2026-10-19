@@ -33,7 +33,7 @@ public class FamilyController {
     @PatchMapping
     public ResponseEntity<FamilyResponse> updateFamilyName(@Valid @RequestBody UpdateFamilyNameRequest request,
                                                              Authentication authentication) {
-        Member member = memberRepository.findByEmail(authentication.getName())
+        Member member = memberRepository.findByAuthSubject(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Logged-in member was not found"));
         Family family = member.getFamily();
         if (family == null) {

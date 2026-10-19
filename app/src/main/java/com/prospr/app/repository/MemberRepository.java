@@ -18,6 +18,19 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     Optional<Member> findByEmail(String email);
 
+    Optional<Member> findByPhone(String phone);
+
+    /** Resolves the logged-in member from the JWT subject, which is the member's id (not email -
+     *  email is optional, so it can't be the identity). A non-UUID subject, e.g. a token issued
+     *  before this change, resolves to empty rather than throwing. */
+    default Optional<Member> findByAuthSubject(String subject) {
+        try {
+            return findById(UUID.fromString(subject));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
     /** For the family-code login screen's member picker. */
     List<Member> findByFamilyIdOrderByCreatedAtAsc(UUID familyId);
 

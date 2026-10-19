@@ -43,7 +43,7 @@ class ActionableInsightControllerTest {
     void actionableMapsServiceResultsForTheCallerOnly() {
         Member caller = Member.builder().id(UUID.randomUUID()).email("caller@example.com").build();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(actionableInsightService.buildInsights(any(), any(), any(), any())).thenReturn(List.of(
                 new ActionableInsightService.ActionableInsight(
                         ActionableInsightService.TYPE_REDUCE, "Dining", "You spent ₹4,000 on Dining...", new BigDecimal("800"))));

@@ -43,7 +43,7 @@ class SafetyNetControllerTest {
     void selfAccessReturnsOwnSummary() {
         Member caller = member(null);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         SafetyNetResponse response = SafetyNetResponse.builder().build();
         when(safetyNetService.getForMember(caller)).thenReturn(response);
 
@@ -58,7 +58,7 @@ class SafetyNetControllerTest {
         Member caller = member(family);
         Member target = member(family);
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(memberRepository.findByIdAndFamilyId(target.getId(), family.getId())).thenReturn(Optional.of(target));
         SafetyNetResponse response = SafetyNetResponse.builder().build();
         when(safetyNetService.getForMember(target)).thenReturn(response);
@@ -74,7 +74,7 @@ class SafetyNetControllerTest {
         Member caller = member(family);
         UUID strangerId = UUID.randomUUID();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
         when(memberRepository.findByIdAndFamilyId(strangerId, family.getId())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller().getMemberSafetyNet(strangerId, authentication))
@@ -86,7 +86,7 @@ class SafetyNetControllerTest {
         Member caller = member(null);
         UUID otherId = UUID.randomUUID();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
 
         assertThatThrownBy(() -> controller().getMemberSafetyNet(otherId, authentication))
                 .isInstanceOf(ResourceNotFoundException.class);
