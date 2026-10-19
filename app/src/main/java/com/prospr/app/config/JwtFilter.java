@@ -14,7 +14,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.UUID;
 
 @Component
 public class JwtFilter extends OncePerRequestFilter {
@@ -46,9 +45,7 @@ public class JwtFilter extends OncePerRequestFilter {
         try {
             String subject = jwtUtil.extractSubject(token);
 
-            // The subject is the member's id. A token from before that change carried an email
-            // instead - treat it as unauthenticated so the client is sent back to log in again.
-            if (isMemberId(subject) && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (subject != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                 if (jwtUtil.validateToken(token)) {
 
@@ -68,17 +65,5 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private static boolean isMemberId(String subject) {
-        if (subject == null) {
-            return false;
-        }
-        try {
-            UUID.fromString(subject);
-            return true;
-        } catch (IllegalArgumentException ex) {
-            return false;
-        }
     }
 }

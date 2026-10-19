@@ -1,7 +1,6 @@
 package com.prospr.app.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,11 +15,9 @@ import lombok.Setter;
 @AllArgsConstructor
 public class LoginRequest {
 
-    /** Mobile number, or email for accounts that have one. "email" is accepted as an alias so
-     *  clients written before email became optional keep working. */
-    @JsonAlias("email")
-    @NotBlank(message = "Mobile number cannot be blank")
-    private String identifier;
+    @NotBlank(message = "Email cannot be blank")
+    @Email(message = "Email must be a valid email address")
+    private String email;
 
     @NotBlank(message = "Password cannot be blank")
     private String password;

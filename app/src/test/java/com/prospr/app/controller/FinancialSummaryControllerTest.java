@@ -66,7 +66,7 @@ class FinancialSummaryControllerTest {
 
     private void stubCaller(Member member) {
         when(authentication.getName()).thenReturn(member.getEmail());
-        when(memberRepository.findByAuthSubject(member.getEmail())).thenReturn(Optional.of(member));
+        when(memberRepository.findByEmail(member.getEmail())).thenReturn(Optional.of(member));
     }
 
     /** Simulates an always-empty cache: reads miss, and the stampede guard just runs the loader

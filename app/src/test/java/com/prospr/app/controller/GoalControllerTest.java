@@ -63,7 +63,7 @@ class GoalControllerTest {
     void listGoalsReturnsOnlyTheCallersGoalsWithComputedProgress() {
         Member caller = member();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
         Goal goal = Goal.builder().id(UUID.randomUUID()).member(caller).goalName("Marriage")
                 .goalType(GoalType.MARRIAGE).targetAmount(new BigDecimal("1000000"))
                 .currentAmount(new BigDecimal("250000")).monthlyContribution(new BigDecimal("25000"))
@@ -82,7 +82,7 @@ class GoalControllerTest {
     void createGoalPersistsItUnderTheCallerAndDefaultsOptionalAmountsToZero() {
         Member caller = member();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
         GoalRequest request = request(GoalType.MARRIAGE);
         request.setCurrentAmount(null);
         request.setMonthlyContribution(null);
@@ -101,7 +101,7 @@ class GoalControllerTest {
     void createGoalRejectsAnUnrecognizedGoalType() {
         Member caller = member();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
 
         assertThatThrownBy(() -> controller().createGoal(request("SPACESHIP"), authentication))
                 .isInstanceOf(GoalValidationException.class);
@@ -111,7 +111,7 @@ class GoalControllerTest {
     void updateGoalRejectsSomeoneElsesGoal() {
         Member caller = member();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
         when(goalRepository.findByIdAndMemberId(any(), any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller().updateGoal(UUID.randomUUID(), request(GoalType.MARRIAGE), authentication))
@@ -122,7 +122,7 @@ class GoalControllerTest {
     void deleteGoalRemovesItForTheCaller() {
         Member caller = member();
         when(authentication.getName()).thenReturn(caller.getEmail());
-        when(memberRepository.findByAuthSubject(caller.getEmail())).thenReturn(Optional.of(caller));
+        when(memberRepository.findByEmail(caller.getEmail())).thenReturn(Optional.of(caller));
         Goal goal = Goal.builder().id(UUID.randomUUID()).member(caller).build();
         when(goalRepository.findByIdAndMemberId(goal.getId(), caller.getId())).thenReturn(Optional.of(goal));
 

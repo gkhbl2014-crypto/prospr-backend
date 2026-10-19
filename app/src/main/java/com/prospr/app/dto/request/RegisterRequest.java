@@ -1,10 +1,7 @@
 package com.prospr.app.dto.request;
 
-import java.util.UUID;
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,16 +25,12 @@ public class RegisterRequest {
     @NotBlank(message = "Last name cannot be blank")
     private String lastName;
 
-    /** Optional - blank is treated as "no email". */
+    @NotBlank(message = "Email cannot be blank")
     @Email(message = "Email must be a valid email address")
     private String email;
 
     @NotBlank(message = "Phone cannot be blank")
     private String phone;
-
-    /** Returned by POST /api/auth/otp/verify; proves {@code phone} was verified by OTP. */
-    @NotNull(message = "Verify your mobile number to continue")
-    private UUID verificationId;
 
     @NotBlank(message = "Password cannot be blank")
     @Size(min = 8, message = "Password must be at least 8 characters long")

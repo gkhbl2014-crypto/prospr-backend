@@ -3,7 +3,6 @@ package com.prospr.app.service.impl;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,13 +25,12 @@ import com.prospr.app.repository.MemberRepository;
 import com.prospr.app.repository.MutualFundHoldingRepository;
 import com.prospr.app.repository.TransactionRepository;
 import com.prospr.app.service.LoginService;
-import com.prospr.app.util.PhoneNumbers;
 
 @Service
 public class LoginServiceImpl implements LoginService {
 
     private static final Logger log = LoggerFactory.getLogger(LoginServiceImpl.class);
-    private static final String INVALID_CREDENTIALS_MESSAGE = "Invalid mobile number or password";
+    private static final String INVALID_CREDENTIALS_MESSAGE = "Invalid email or password";
     private static final String INVALID_FAMILY_LOGIN_MESSAGE = "Invalid member or password";
 
     private final MemberRepository memberRepository;
@@ -62,16 +60,16 @@ public class LoginServiceImpl implements LoginService {
     @Override
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
-        log.info("Login attempt");
+        log.info("Login attempt for email '{}'", request.getEmail());
 
-        Member member = findByIdentifier(request.getIdentifier())
+        Member member = memberRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> {
-                    log.warn("Login rejected: no member found for the given identifier");
+                    log.warn("Login rejected: no member found for email '{}'", request.getEmail());
                     return new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
                 });
 
         if (!passwordEncoder.matches(request.getPassword(), member.getPassword())) {
-            log.warn("Login rejected: password mismatch for memberId={}", member.getId());
+            log.warn("Login rejected: password mismatch for email '{}'", request.getEmail());
             throw new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
         }
 
@@ -127,24 +125,6 @@ public class LoginServiceImpl implements LoginService {
         return buildLoginResponse(member, "Login successful");
     }
 
-    /** Mobile number first (the primary identity); an email also works for accounts that have one. */
-    private Optional<Member> findByIdentifier(String identifier) {
-        String trimmed = identifier.trim();
-        if (trimmed.contains("@")) {
-            return memberRepository.findByEmail(trimmed);
-        }
-        try {
-            Optional<Member> byNormalized = memberRepository.findByPhone(PhoneNumbers.normalizeIndian(trimmed));
-            if (byNormalized.isPresent()) {
-                return byNormalized;
-            }
-        } catch (IllegalArgumentException ex) {
-            // Not a valid Indian mobile - fall through to an exact match for numbers stored as typed.
-        }
-        // Accounts created before numbers were normalised keep whatever format they were typed in.
-        return memberRepository.findByPhone(trimmed);
-    }
-
     private Family resolveFamilyByInviteCode(String inviteCode) {
         return familyRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> {
@@ -155,14 +135,14 @@ public class LoginServiceImpl implements LoginService {
 
     private void requireActive(Member member) {
         if (!"ACTIVE".equalsIgnoreCase(member.getStatus())) {
-            log.warn("Login rejected: memberId={} has status '{}'", member.getId(), member.getStatus());
+            log.warn("Login rejected: member '{}' has status '{}'", member.getEmail(), member.getStatus());
             throw new InvalidCredentialsException("Account is not active");
         }
     }
 
     private LoginResponse buildLoginResponse(Member member, String message) {
         Family family = member.getFamily();
-        String token = jwtUtil.generateToken(member.getId().toString(), buildClaims(member, family));
+        String token = jwtUtil.generateToken(member.getEmail(), buildClaims(member, family));
         boolean hasLinkedData = transactionRepository.existsByMemberId(member.getId())
                 || insuranceRepository.existsByMemberId(member.getId())
                 || mutualFundHoldingRepository.existsByMemberId(member.getId());

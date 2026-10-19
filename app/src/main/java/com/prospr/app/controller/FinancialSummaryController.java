@@ -254,7 +254,7 @@ public class FinancialSummaryController {
     }
 
     private Member resolveMember(Authentication authentication) {
-        return memberRepository.findByAuthSubject(authentication.getName())
+        return memberRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Logged-in member was not found"));
     }
 }
