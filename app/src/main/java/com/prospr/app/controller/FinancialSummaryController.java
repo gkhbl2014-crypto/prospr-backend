@@ -29,6 +29,7 @@ import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberMonthlySnapshotRepository;
 import com.prospr.app.repository.MemberMonthlySummaryRepository;
 import com.prospr.app.repository.MemberRepository;
+import com.prospr.app.service.AnalysisConfidenceService;
 import com.prospr.app.service.CategoryTaxonomy;
 import com.prospr.app.service.FinancialAnalysisOrchestratorService;
 import com.prospr.app.service.TransactionClassificationService;
@@ -131,6 +132,8 @@ public class FinancialSummaryController {
                 + " " + snapshot.getYear();
 
         List<CategoryAmount> topCategories = buildTopCategories(memberId, snapshot);
+        AnalysisConfidenceService.MonthCoverage coverage = AnalysisConfidenceService.coverageOf(
+                snapshot.getTotalCashOutflow(), snapshot.getTotalOtherDebit(), snapshot.getTotalUnknown());
         boolean incomeUnavailable = snapshot.getSavingsRate() == null
                 && Boolean.TRUE.equals(snapshot.getHasData())
                 && snapshot.getTotalIncome().compareTo(BigDecimal.ZERO) == 0;
@@ -157,6 +160,8 @@ public class FinancialSummaryController {
                 .savingsRate(snapshot.getSavingsRate())
                 .savingsRateUnavailableReason(incomeUnavailable ? SAVINGS_RATE_UNAVAILABLE_REASON : null)
                 .reconciled(Boolean.TRUE.equals(snapshot.getReconciled()))
+                .unexplainedSpend(coverage.unexplained())
+                .explainedPercent(AnalysisConfidenceService.explainedPercent(coverage))
                 .transactionCount(snapshot.getTransactionCount())
                 .averageTransactionValue(snapshot.getAverageTransactionValue())
                 .topCategories(topCategories)

@@ -23,6 +23,7 @@ import com.prospr.app.entity.LifestyleInsight;
 import com.prospr.app.entity.Member;
 import com.prospr.app.exception.ResourceNotFoundException;
 import com.prospr.app.repository.MemberRepository;
+import com.prospr.app.service.AnalysisConfidenceService;
 import com.prospr.app.service.LifestyleAnalysisService;
 import com.prospr.app.service.LifestyleCategoryCatalog;
 import com.prospr.app.service.LifestyleStatus;
@@ -41,17 +42,20 @@ public class LifestyleController {
     private final MemberRepository memberRepository;
     private final LifestyleProperties lifestyleProperties;
     private final AnalyticsCacheService analyticsCacheService;
+    private final AnalysisConfidenceService analysisConfidenceService;
 
     public LifestyleController(LifestyleAnalysisService lifestyleAnalysisService,
                                 LifestyleCategoryCatalog categoryCatalog,
                                 MemberRepository memberRepository,
                                 LifestyleProperties lifestyleProperties,
-                                AnalyticsCacheService analyticsCacheService) {
+                                AnalyticsCacheService analyticsCacheService,
+                                AnalysisConfidenceService analysisConfidenceService) {
         this.lifestyleAnalysisService = lifestyleAnalysisService;
         this.categoryCatalog = categoryCatalog;
         this.memberRepository = memberRepository;
         this.lifestyleProperties = lifestyleProperties;
         this.analyticsCacheService = analyticsCacheService;
+        this.analysisConfidenceService = analysisConfidenceService;
     }
 
     /** Runs lifestyle analysis against the member's already-stored transaction history. */
@@ -133,7 +137,14 @@ public class LifestyleController {
                 ? "Month to date (1–" + today.format(MONTH_FORMAT) + ")"
                 : insightMonth.atDay(1).format(MONTH_YEAR_FORMAT);
 
+        AnalysisConfidenceService.Confidence confidence = analysisConfidenceService
+                .forLifestyle(insight.getMember().getId(), insightMonth);
+
         return LifestyleCreepSummaryResponse.builder()
+                .confidenceLevel(confidence.level())
+                .confidenceReason(confidence.reason())
+                .unexplainedAmount(confidence.unexplainedAmount())
+                .explainedPercent(confidence.explainedPercent())
                 .state(insight.getSeverity())
                 .periodLabel(periodLabel)
                 .monthToDate(monthToDate)

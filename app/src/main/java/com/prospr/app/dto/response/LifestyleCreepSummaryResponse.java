@@ -35,4 +35,11 @@ public class LifestyleCreepSummaryResponse {
     private BigDecimal newRecurringExpenseAmount;
     /** Null whenever income isn't reliably known for every relevant month - never a guess. */
     private Double incomeGrowthPercent;
+    /** HIGH|MEDIUM|LOW - how far to trust this verdict given uncategorized spending and history depth. */
+    private String confidenceLevel;
+    private String confidenceReason;
+    /** This month's spending that has no real category yet. */
+    private BigDecimal unexplainedAmount;
+    /** Share of this month's spending that is categorized, 0-100; null when nothing was spent. */
+    private Integer explainedPercent;
 }

@@ -46,6 +46,12 @@ public class MonthlySnapshotResponse {
 
     private boolean reconciled;
 
+    /** Spending with no real category yet (mostly UPI payments to people) - the part of this month
+     *  these numbers can't explain. */
+    private BigDecimal unexplainedSpend;
+    /** Share of spending that IS categorized, 0-100. Null when there's no spending to measure. */
+    private Integer explainedPercent;
+
     private Integer transactionCount;
     private BigDecimal averageTransactionValue;
     private List<CategoryAmount> topCategories;
