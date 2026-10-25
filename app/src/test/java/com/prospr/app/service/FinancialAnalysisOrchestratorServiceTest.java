@@ -61,7 +61,7 @@ class FinancialAnalysisOrchestratorServiceTest {
         order.verify(transactionRepository).saveAll(all);
         order.verify(recurringExpenseDetectionService).recomputeForMember(member);
         order.verify(monthlySnapshotService).recomputeForMember(member);
-        order.verify(lifestyleAnalysisService).recomputeIfEnabled(member);
+        order.verify(lifestyleAnalysisService).refreshAfterDataChange(member);
         order.verify(safetyNetService).recomputeForMember(member);
     }
 
