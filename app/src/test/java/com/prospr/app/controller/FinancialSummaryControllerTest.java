@@ -102,8 +102,7 @@ class FinancialSummaryControllerTest {
         when(snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(member.getId())).thenReturn(List.of(
                 snapshot(member, 2026, 8, "60000", "40000", "33.33"),
                 snapshot(member, 2026, 7, "50000", "35000", "30.00")));
-        when(summaryRepository.findByMemberIdAndYearAndMonth(member.getId(), 2026, 8)).thenReturn(List.of());
-        when(summaryRepository.findByMemberIdAndYearAndMonth(member.getId(), 2026, 7)).thenReturn(List.of());
+        when(summaryRepository.findByMemberId(member.getId())).thenReturn(List.of());
 
         List<MonthlySnapshotResponse> result = controller().monthly(2, authentication).getBody();
 
@@ -159,7 +158,7 @@ class FinancialSummaryControllerTest {
         stubCacheMiss();
         when(snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(member.getId())).thenReturn(List.of(
                 snapshot(member, 2026, 8, "60000", "40000", "33.33")));
-        when(summaryRepository.findByMemberIdAndYearAndMonth(member.getId(), 2026, 8)).thenReturn(List.of());
+        when(summaryRepository.findByMemberId(member.getId())).thenReturn(List.of());
 
         List<MonthlySnapshotResponse> result = controller().monthly(6, authentication).getBody();
 

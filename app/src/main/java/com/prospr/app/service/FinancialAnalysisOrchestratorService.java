@@ -16,7 +16,7 @@ import com.prospr.app.repository.TransactionRepository;
  * isn't a separate stage here.
  *
  * <p>Never throws for a background-sync caller's sake would be nice, but each downstream stage
- * already owns its own failure handling ({@link LifestyleAnalysisService#recomputeIfEnabled} never
+ * already owns its own failure handling ({@link LifestyleAnalysisService#refreshAfterDataChange} never
  * throws; {@link SafetyNetService#recomputeForMember} documents that callers triggered by background
  * sync must wrap it themselves) - this orchestrator doesn't add another swallow-everything layer on
  * top of that existing, already-reviewed behavior.
@@ -57,7 +57,7 @@ public class FinancialAnalysisOrchestratorService {
         recurringExpenseDetectionService.recomputeForMember(member);
         monthlySnapshotService.recomputeForMember(member);
 
-        lifestyleAnalysisService.recomputeIfEnabled(member);
+        lifestyleAnalysisService.refreshAfterDataChange(member);
         safetyNetService.recomputeForMember(member);
     }
 }

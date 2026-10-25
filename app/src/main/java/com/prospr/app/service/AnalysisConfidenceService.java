@@ -5,8 +5,11 @@ import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -109,16 +112,20 @@ public class AnalysisConfidenceService {
     }
 
     public Confidence forLifestyle(java.util.UUID memberId, YearMonth month) {
-        MonthCoverage current = snapshotRepository
-                .findByMemberIdAndYearAndMonth(memberId, month.getYear(), month.getMonthValue())
+        // One round trip for the whole history (a handful of rows) instead of one per baseline month.
+        Map<YearMonth, MemberMonthlySnapshot> byMonth = new HashMap<>();
+        for (MemberMonthlySnapshot snapshot : snapshotRepository.findByMemberIdOrderByYearDescMonthDesc(memberId)) {
+            byMonth.put(YearMonth.of(snapshot.getYear(), snapshot.getMonth()), snapshot);
+        }
+
+        MonthCoverage current = Optional.ofNullable(byMonth.get(month))
                 .map(AnalysisConfidenceService::coverageOf)
                 .orElse(new MonthCoverage(BigDecimal.ZERO, BigDecimal.ZERO));
 
         int expected = lifestyleProperties.getBaselineMonths();
         List<MonthCoverage> baseline = new ArrayList<>();
         for (int monthsBack = 1; monthsBack <= expected; monthsBack++) {
-            YearMonth prior = month.minusMonths(monthsBack);
-            snapshotRepository.findByMemberIdAndYearAndMonth(memberId, prior.getYear(), prior.getMonthValue())
+            Optional.ofNullable(byMonth.get(month.minusMonths(monthsBack)))
                     .map(AnalysisConfidenceService::coverageOf)
                     .filter(coverage -> coverage.spend().signum() > 0)
                     .ifPresent(baseline::add);

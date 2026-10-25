@@ -17,5 +17,8 @@ public interface MemberMonthlySummaryRepository extends JpaRepository<MemberMont
 
     List<MemberMonthlySummary> findByMemberIdAndYearAndMonth(UUID memberId, Integer year, Integer month);
 
+    /** Every stored category total for the member - lets the monthly trend load all months in one query. */
+    List<MemberMonthlySummary> findByMemberId(UUID memberId);
+
     void deleteByMemberId(UUID memberId);
 }

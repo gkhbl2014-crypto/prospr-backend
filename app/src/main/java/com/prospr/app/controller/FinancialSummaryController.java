@@ -8,8 +8,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -110,11 +112,18 @@ public class FinancialSummaryController {
         ascending.sort(Comparator.comparing(MemberMonthlySnapshot::getYear)
                 .thenComparing(MemberMonthlySnapshot::getMonth));
 
+        // One query for every month's category totals, grouped here, instead of one query per month.
+        Map<YearMonth, List<MemberMonthlySummary>> summariesByMonth = ascending.isEmpty() ? Map.of()
+                : summaryRepository.findByMemberId(memberId).stream()
+                        .collect(Collectors.groupingBy(s -> YearMonth.of(s.getYear(), s.getMonth())));
+
         List<MonthlySnapshotResponse> responses = new ArrayList<>();
         for (int i = 0; i < ascending.size(); i++) {
             MemberMonthlySnapshot current = ascending.get(i);
             MemberMonthlySnapshot previous = i > 0 ? ascending.get(i - 1) : null;
-            responses.add(toResponse(memberId, current, previous));
+            List<MemberMonthlySummary> monthSummaries = summariesByMonth.getOrDefault(
+                    YearMonth.of(current.getYear(), current.getMonth()), List.of());
+            responses.add(toResponse(current, previous, monthSummaries));
         }
         return responses;
     }
@@ -126,12 +135,12 @@ public class FinancialSummaryController {
         return ResponseEntity.noContent().build();
     }
 
-    private MonthlySnapshotResponse toResponse(UUID memberId, MemberMonthlySnapshot snapshot,
-                                                MemberMonthlySnapshot previous) {
+    private MonthlySnapshotResponse toResponse(MemberMonthlySnapshot snapshot, MemberMonthlySnapshot previous,
+                                                List<MemberMonthlySummary> monthSummaries) {
         String monthLabel = Month.of(snapshot.getMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
                 + " " + snapshot.getYear();
 
-        List<CategoryAmount> topCategories = buildTopCategories(memberId, snapshot);
+        List<CategoryAmount> topCategories = buildTopCategories(snapshot, monthSummaries);
         AnalysisConfidenceService.MonthCoverage coverage = AnalysisConfidenceService.coverageOf(
                 snapshot.getTotalCashOutflow(), snapshot.getTotalOtherDebit(), snapshot.getTotalUnknown());
         boolean incomeUnavailable = snapshot.getSavingsRate() == null
@@ -185,9 +194,9 @@ public class FinancialSummaryController {
      * categories are deliberately excluded here; they're surfaced as their own dedicated snapshot
      * fields instead, never as an expense-category chip.
      */
-    private List<CategoryAmount> buildTopCategories(UUID memberId, MemberMonthlySnapshot snapshot) {
-        List<MemberMonthlySummary> categorySummaries = summaryRepository
-                .findByMemberIdAndYearAndMonth(memberId, snapshot.getYear(), snapshot.getMonth()).stream()
+    private List<CategoryAmount> buildTopCategories(MemberMonthlySnapshot snapshot,
+                                                     List<MemberMonthlySummary> monthSummaries) {
+        List<MemberMonthlySummary> categorySummaries = monthSummaries.stream()
                 .filter(s -> transactionClassificationService.isExpenseCategory(s.getCategory()))
                 .sorted(Comparator.comparing(MemberMonthlySummary::getTotalAmount).reversed())
                 .toList();

@@ -67,8 +67,19 @@ public class LifestyleAnalysisService {
         this.currentMonthResolver = currentMonthResolver;
     }
 
-    /** Runs the pipeline against whatever transaction history already exists for this member. */
+    /**
+     * Runs the pipeline against whatever transaction history already exists for this member. When
+     * {@link #refreshAfterDataChange} has already produced this month's summary during import, there
+     * is nothing left to calculate - enabling just records the READY status, so the click is instant.
+     */
     public void enable(Member member) {
+        if (statusRepository.findByMemberId(member.getId()).isEmpty() && getCurrentMonthSummary(member).isPresent()) {
+            MemberLifestyleStatus status = MemberLifestyleStatus.builder()
+                    .member(member).status(LifestyleStatus.NOT_ENABLED).build();
+            updateStatus(status, LifestyleStatus.READY);
+            analyticsCacheService.evictLifestyleCreep(member.getId());
+            return;
+        }
         recomputeForMember(member);
     }
 
@@ -88,15 +99,30 @@ public class LifestyleAnalysisService {
     }
 
     /**
-     * Hooked from {@link SetuSessionService} right after transactions are persisted for a session.
-     * A no-op for members who never enabled lifestyle analysis (no status row yet), so ordinary
-     * Setu users who never touched this feature never pay for it.
+     * Called by the analysis orchestrator after every import or data change. Members who already
+     * enabled lifestyle analysis get the full status-tracked run; everyone else gets a silent
+     * precompute so the results are waiting when they press Enable. Never throws, and never creates
+     * a status row - a member who hasn't enabled the feature still reads as NOT_ENABLED.
+     *
+     * <p>Skips categorization and recurring-expense detection: the orchestrator has already run both
+     * moments earlier in the same pipeline.
      */
-    public void recomputeIfEnabled(Member member) {
-        if (statusRepository.findByMemberId(member.getId()).isEmpty()) {
+    public void refreshAfterDataChange(Member member) {
+        if (statusRepository.findByMemberId(member.getId()).isPresent()) {
+            recomputeForMember(member);
             return;
         }
-        recomputeForMember(member);
+        try {
+            monthlySummaryService.recomputeForMember(member);
+            CurrentMonthResolver.EffectivePeriod period = currentMonthResolver.resolve(member.getId());
+            LifestyleBaselineService.Result baselineResult = baselineService.recomputeForMember(member, period.month());
+            if (baselineResult != LifestyleBaselineService.Result.INSUFFICIENT_HISTORY) {
+                insightService.recomputeForMember(member, period.month(), period.asOfDate());
+            }
+            analyticsCacheService.evictLifestyleCreep(member.getId());
+        } catch (Exception ex) {
+            log.warn("Lifestyle precompute failed for member '{}': {}", member.getId(), ex.getMessage(), ex);
+        }
     }
 
     /**
