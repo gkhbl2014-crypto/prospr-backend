@@ -87,6 +87,12 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(WhatIfValidationException.class)
+    public ResponseEntity<ErrorResponse> handleWhatIfValidation(WhatIfValidationException ex) {
+        log.warn("What-if request rejected: {}", ex.getMessage());
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(SetuIntegrationException.class)
     public ResponseEntity<ErrorResponse> handleSetuIntegration(SetuIntegrationException ex) {
         log.error("Setu integration failed: {}", ex.getMessage());
